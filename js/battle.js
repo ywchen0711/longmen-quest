@@ -1,16 +1,16 @@
 // Front-view one-on-one battles in pure 8-bit style. Rounds: the hero picks a command, then hero and foe act in
 // order of agility (with a little luck). Everything the foe does goes through the same rules as the hero.
-import { ENEMIES, SKILLS, ITEMS, ART_OF } from './data.js?v=5';
-import { ENEMY_ART } from './enemy_art.js?v=5';
-import { CAST } from './people_art.js?v=5';
-import * as R from './rules.js?v=5';
-import { t, STR } from './ui.js?v=5';
-import { hex } from './tiles.js?v=5';
+import { ENEMIES, SKILLS, ITEMS, ART_OF } from './data.js?v=6';
+import { ENEMY_ART } from './enemy_art.js?v=6';
+import { CAST } from './people_art.js?v=6';
+import * as R from './rules.js?v=6';
+import { t, STR } from './ui.js?v=6';
+import { hex } from './tiles.js?v=6';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const imgs = {};
 function img(src) { if (!imgs[src]) { imgs[src] = new Image(); imgs[src].src = src; } return imgs[src]; }
-export function preloadBattleArt() { img('assets/enemies.png?v=5'); for (const c of Object.values(CAST)) img(c.portrait); }
+export function preloadBattleArt() { img('assets/enemies.png?v=6'); for (const c of Object.values(CAST)) img(c.portrait); }
 
 const SCENES = {   // backdrop strip colours (NES indexes): sky, far, near
   grass: [0x21, 0x1A, 0x0A], forest: [0x0A, 0x0B, 0x1A], hill: [0x21, 0x19, 0x09], sand: [0x31, 0x27, 0x17], swamp: [0x0C, 0x0B, 0x04],
@@ -30,7 +30,7 @@ export async function battle(G, foeId, opts = {}) {
   // ---------------------------------------------------------------- the screen
   const root = document.getElementById('battle'); root.innerHTML = ''; root.classList.remove('hidden');
   const el = (tag, cls, p = root) => { const e = document.createElement(tag); e.className = cls; p.appendChild(e); return e; };
-  const stage = el('div', 'win bstage'); const cv = el('canvas', 'bcanvas', stage); cv.width = 160; cv.height = 120; const cx = cv.getContext('2d'); cx.imageSmoothingEnabled = false;
+  const stage = el('div', 'win bstage'); const cv = el('canvas', 'bcanvas', stage); cv.width = 480; cv.height = 360; const cx = cv.getContext('2d'); cx.setTransform(3, 0, 0, 3, 0, 0); cx.imageSmoothingEnabled = false;   // drawn at 160x120, stored at 3x so pictures can use whole device pixels
   const stat = el('div', 'win bstat'); const log = el('div', 'win blog'); const lines = [];
   const drawStat = () => { const s = R.stat(h); stat.innerHTML = `<div class="bname">${t(['奕叡', 'Yi Rui'])}${h.poison ? ' <span class="psn">' + t(['毒', 'PSN']) + '</span>' : ''}</div><div>${t('lv')} ${h.lv}</div><div class="${h.hp <= s.maxHp / 4 ? 'low' : ''}">${t('hp')} ${h.hp}/${s.maxHp}</div><div>${t('mp')} ${h.mp}/${s.maxMp}</div>`; stat.classList.toggle('danger', h.hp <= s.maxHp / 4); };
   const say = async (zh, en, ms = 420) => { if (G.ui.driver && G.ui.driver.onLog) G.ui.driver.onLog(zh); lines.push(t([zh, en])); while (lines.length > 4) lines.shift(); log.innerHTML = lines.map((l) => `<div>${l}</div>`).join(''); await wait(ms); };
@@ -40,8 +40,10 @@ export async function battle(G, foeId, opts = {}) {
   const scene = SCENES[opts.scene] || SCENES.grass;
   let art = null, src = null;
   if (E.por) { src = img(CAST[E.por].portrait); art = { x: 0, y: 0, w: 48, h: 56, por: 1 }; }
-  else { src = img('assets/enemies.png?v=5'); art = ENEMY_ART[ART_OF(foeId)]; }
-  const scale = art.por ? 2 : (E.big ? 2.4 : 2);
+  else { src = img('assets/enemies.png?v=6'); art = ENEMY_ART[ART_OF(foeId)]; }
+  // whole device pixels per art pixel (k/3 on the 160x120 stage); bigger pictures step down so they always fit
+  const k = art.por ? 6 : Math.max(3, Math.min(E.big ? 7 : 6, Math.floor(348 / art.h), Math.floor(468 / art.w)));
+  const scale = k / 3;
   const fx = { flash: 0, shake: 0, alpha: 1, dissolve: 0, parts: [], slash: 0, heal: 0 };
   let alive = true, raf = 0, last = performance.now();
   function draw(now) {
@@ -53,15 +55,15 @@ export async function battle(G, foeId, opts = {}) {
     cx.fillStyle = hex(scene[2]); for (let x = 0; x < 160; x += 2) { const y = 20 + Math.round(Math.sin(x * 0.11 + 1) * 2); cx.fillRect(x, y, 2, 26 - y); }
     cx.fillStyle = '#000'; cx.fillRect(0, 26, 160, 2);
     if (src && src.complete && art && fx.alpha > 0) {
-      const w = Math.round(art.w * scale), hh = Math.round(art.h * scale);
-      const ox = Math.round(80 - w / 2 + (fx.shake > 0 ? (Math.random() * 6 - 3) : 0)), oy = Math.round(118 - hh);
+      const w = art.w * scale, hh = art.h * scale;
+      const ox = Math.round((80 - w / 2 + (fx.shake > 0 ? (Math.random() * 6 - 3) : 0)) * 3) / 3, oy = Math.round((118 - hh) * 3) / 3;
       const vis = fx.flash > 0 ? (Math.floor(fx.flash * 20) % 2 === 0) : true;
       if (vis) {
         cx.save(); cx.globalAlpha = fx.alpha;
         if (art.por) { cx.drawImage(src, 0, 0, 48, 56, ox, oy, w, hh); }
         else {
           const cut = Math.floor(art.h * (1 - fx.dissolve));
-          if (cut > 0) cx.drawImage(src, art.x, art.y, art.w, cut, ox, oy, w, Math.round(cut * scale));
+          if (cut > 0) cx.drawImage(src, art.x, art.y, art.w, cut, ox, oy, w, cut * scale);
         }
         cx.restore();
       }
