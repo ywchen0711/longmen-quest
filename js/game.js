@@ -1,13 +1,13 @@
 // The game: where the hero is, walking on tile maps, people and their scripts, chests, doors, encounters, menus,
 // inns, shops, saving and the story's turning points. The view only draws what this holds.
-import { MAPS, PLACES, TILES, L } from './maps.js?v=2';
-import { WORLD, WORLD_W, WORLD_H, PLACE_AT } from './world_map.js?v=2';
-import { ITEMS, SKILLS, SHOPS, ENEMIES, ZONES, zoneAt, ENCOUNTER } from './data.js?v=2';
-import { PEOPLE, CAST } from './people_art.js?v=2';
-import { ENEMY_ART } from './enemy_art.js?v=2';
-import * as R from './rules.js?v=2';
-import { battle } from './battle.js?v=2';
-import { t, STR, getLang, setLang, nameOf } from './ui.js?v=2';
+import { MAPS, PLACES, TILES, L } from './maps.js?v=3';
+import { WORLD, WORLD_W, WORLD_H, PLACE_AT } from './world_map.js?v=3';
+import { ITEMS, SKILLS, SHOPS, ENEMIES, ZONES, zoneAt, ENCOUNTER } from './data.js?v=3';
+import { PEOPLE, CAST } from './people_art.js?v=3';
+import { ENEMY_ART } from './enemy_art.js?v=3';
+import * as R from './rules.js?v=3';
+import { battle } from './battle.js?v=3';
+import { t, STR, getLang, setLang, nameOf } from './ui.js?v=3';
 
 const DIRS = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
 const SAVE_KEYS = ['lq_slot1', 'lq_slot2', 'lq_slot3'];
@@ -17,13 +17,15 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // how a person looks: frames into a sheet ([x, y, w, h, flip, sheetKey])
 export function lookOf(s) {
   if (CAST[s]) {
-    const k = 'cast_' + s, row = (r) => [[0, r * 24, 16, 24, 0, k], [16, r * 24, 16, 24, 0, k]];
+    // the sheets' second walk frame is the whole body mirrored, which made the sword and headband flip sides every
+    // step; keep the first frame's body and only swap in the second frame's legs (the bottom rows)
+    const k = 'cast_' + s, row = (r) => [[0, r * 24, 16, 24, 0, k], [0, r * 24, 16, 24, 0, k, { x: 16, y: r * 24, rows: 5 }]];
     const look = { sheet: k, frames: { down: row(1), side: row(2), up: row(1) } };
     if (s === 'yirui') look.frames.up = PEOPLE.hero_back.map((f) => [f.x, f.y, f.w, f.h, 0, 'npcs']);
     if (s === 'yishuo') look.frames.up = PEOPLE.yishuo_back.map((f) => [f.x, f.y, f.w, f.h, 0, 'npcs']);
     return look;
   }
-  if (PEOPLE[s] && !Array.isArray(PEOPLE[s])) { const f = PEOPLE[s]; const a = [[f.x, f.y, f.w, f.h, 0], [f.x, f.y, f.w, f.h, 1]]; return { sheet: 'npcs', frames: { down: a, side: a, up: a } }; }
+  if (PEOPLE[s] && !Array.isArray(PEOPLE[s])) { const f = PEOPLE[s]; const a = [[f.x, f.y, f.w, f.h, 0], [f.x, f.y, f.w, f.h, 0, null, { x: f.x, y: f.y, rows: 4, mirror: true }]]; return { sheet: 'npcs', frames: { down: a, side: a, up: a } }; }
   if (ENEMY_ART[s]) { const f = ENEMY_ART[s]; const a = [[f.x, f.y, f.w, f.h, 0], [f.x, f.y, f.w, f.h, 0]]; return { sheet: 'enemies', cw: Math.ceil(f.w / 8) * 8, ch: f.h, frames: { down: a, side: a, up: a } }; }
   return lookOf('man');
 }

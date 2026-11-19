@@ -1,11 +1,11 @@
 // Front-view one-on-one battles in pure 8-bit style. Rounds: the hero picks a command, then hero and foe act in
 // order of agility (with a little luck). Everything the foe does goes through the same rules as the hero.
-import { ENEMIES, SKILLS, ITEMS, ART_OF } from './data.js?v=2';
-import { ENEMY_ART } from './enemy_art.js?v=2';
-import { CAST } from './people_art.js?v=2';
-import * as R from './rules.js?v=2';
-import { t, STR } from './ui.js?v=2';
-import { hex } from './tiles.js?v=2';
+import { ENEMIES, SKILLS, ITEMS, ART_OF } from './data.js?v=3';
+import { ENEMY_ART } from './enemy_art.js?v=3';
+import { CAST } from './people_art.js?v=3';
+import * as R from './rules.js?v=3';
+import { t, STR } from './ui.js?v=3';
+import { hex } from './tiles.js?v=3';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const imgs = {};

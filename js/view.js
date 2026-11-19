@@ -6,8 +6,8 @@ import { RenderPass } from '../lib/addons/RenderPass.js';
 import { UnrealBloomPass } from '../lib/addons/UnrealBloomPass.js';
 import { OutputPass } from '../lib/addons/OutputPass.js';
 import { ShaderPass } from '../lib/addons/ShaderPass.js';
-import { tex, spr } from './tiles.js?v=2';
-import { TILES } from './maps.js?v=2';
+import { tex, spr } from './tiles.js?v=3';
+import { TILES } from './maps.js?v=3';
 
 const TiltShift = {
   uniforms: { tDiffuse: { value: null }, res: { value: new THREE.Vector2(1, 1) }, dir: { value: new THREE.Vector2(1, 0) }, focus: { value: 0.5 }, band: { value: 0.18 }, amount: { value: 2.2 } },
@@ -435,7 +435,8 @@ class Actor {
     const k = dir + i; if (this.cache[k]) return this.cache[k];
     const L = this.look, list = L.frames[dir] || L.frames.down, f = list[i % list.length];
     const img = SHEETS[f[5] || L.sheet]; const W = this.cw, H = this.ch; const c = document.createElement('canvas'); c.width = W; c.height = H; const x = c.getContext('2d');
-    if (img) { x.imageSmoothingEnabled = false; const flip = f[4]; if (flip) { x.translate(W, 0); x.scale(-1, 1); } x.drawImage(img, f[0], f[1], f[2], f[3], Math.floor((W - f[2]) / 2), H - f[3], f[2], f[3]); }
+    if (img) { x.imageSmoothingEnabled = false; const flip = f[4]; if (flip) { x.translate(W, 0); x.scale(-1, 1); } x.drawImage(img, f[0], f[1], f[2], f[3], Math.floor((W - f[2]) / 2), H - f[3], f[2], f[3]);
+      const lg = f[6]; if (lg) { const n = lg.rows, dx = Math.floor((W - f[2]) / 2); x.clearRect(dx, H - n, f[2], n); if (lg.mirror) { x.save(); x.translate(2 * dx + f[2], 0); x.scale(-1, 1); } x.drawImage(img, lg.x, lg.y + f[3] - n, f[2], n, dx, H - n, f[2], n); if (lg.mirror) x.restore(); } }
     return (this.cache[k] = texOf(c));
   }
   set(dir, i) {
