@@ -47,7 +47,7 @@ Characters:
   - homeward and slip away (leave a dungeon)
   - ward (keeps weak monsters away)
   - Diamond Body (from the mentor)
-- There are 50 regular enemies in five tiers (the Character Gallery's common foes), a rare stone toad full of silver, and 9 bosses.
+- There are 50 regular enemies in five tiers (the Character Gallery's common foes), a rare stone toad full of silver, and 9 bosses. Their battle pictures are the gallery's 48x56 bust portraits in the 霸王之路 style (black NES panel, like the people bosses).
 - Big beasts from the gallery: the nine-tailed fox is the Moonwater Siren's true form and the talisman jiangshi is the Jiangshi General. The tiger, the shanxiao, the fire crow and the venom toad sometimes appear in the wild instead of a common foe. The white ape (Hidden Blade Grotto), the river jiao (Moonwater Cave) and the stone lion (fourth floor of the tower) guard rewards as optional fights.
 - 圖鑑 (Bestiary) in the field menu lists every foe met, with its picture, home and story.
 - Bosses follow the same rules as the hero. They are tough only through their stats, the arts any fighter can use, carried wound salves and a smarter AI. Enemies do not scale to your level.

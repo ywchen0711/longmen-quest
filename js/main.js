@@ -1,12 +1,12 @@
 // Boot: build the view, the title screen, the opening, and run the fixed-timestep loop.
-import { View, pickQuality, loadImage, registerSheet } from './view.js?v=6';
-import { Input } from './input.js?v=6';
-import { UI, t, STR, getLang, setLang } from './ui.js?v=6';
-import { Audio } from './audio.js?v=6';
-import { Game, mapName } from './game.js?v=6';
-import { CAST, PEOPLE_IMAGE } from './people_art.js?v=6';
-import { preloadBattleArt } from './battle.js?v=6';
-import { PLACE_AT } from './world_map.js?v=6';
+import { View, pickQuality, loadImage, registerSheet } from './view.js?v=7';
+import { Input } from './input.js?v=7';
+import { UI, t, STR, getLang, setLang } from './ui.js?v=7';
+import { Audio } from './audio.js?v=7';
+import { Game, mapName } from './game.js?v=7';
+import { CAST, PEOPLE_IMAGE } from './people_art.js?v=7';
+import { preloadBattleArt } from './battle.js?v=7';
+import { PLACE_AT } from './world_map.js?v=7';
 
 const params = new URLSearchParams(location.search);
 const NORENDER = params.has('norender');
@@ -51,7 +51,7 @@ input.push((k) => {
 });
 
 async function loadArt() {
-  const jobs = [loadImage(PEOPLE_IMAGE).then((i) => registerSheet('npcs', i)), loadImage('assets/enemies.png?v=6').then((i) => registerSheet('enemies', i))];
+  const jobs = [loadImage(PEOPLE_IMAGE).then((i) => registerSheet('npcs', i)), loadImage('assets/enemies.png?v=7').then((i) => registerSheet('enemies', i))];
   for (const [id, c] of Object.entries(CAST)) jobs.push(loadImage(c.sheet).then((i) => registerSheet('cast_' + id, i)));
   await Promise.all(jobs); preloadBattleArt();
 }
@@ -79,7 +79,7 @@ function titlePan(dt) { panT += dt; view.frame(dt, { x: 26 + Math.sin(panT * 0.0
 // ---------------------------------------------------------------- title
 async function title() {
   G.mode = 'title';
-  if (view) { const pl = {}; const { PLACES } = await import('./maps.js?v=6'); for (const [k, [x, y]] of Object.entries(PLACE_AT)) pl[k] = [x, y, PLACES[k].look]; const { WORLD } = await import('./world_map.js?v=6'); view.buildWorld(WORLD, pl, {}); view.camReady = false; }
+  if (view) { const pl = {}; const { PLACES } = await import('./maps.js?v=7'); for (const [k, [x, y]] of Object.entries(PLACE_AT)) pl[k] = [x, y, PLACES[k].look]; const { WORLD } = await import('./world_map.js?v=7'); view.buildWorld(WORLD, pl, {}); view.camReady = false; }
   const tl = document.getElementById('title'); tl.classList.remove('hidden');
   audio.play('title');
   for (;;) {

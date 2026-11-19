@@ -1,16 +1,16 @@
 // Front-view one-on-one battles in pure 8-bit style. Rounds: the hero picks a command, then hero and foe act in
 // order of agility (with a little luck). Everything the foe does goes through the same rules as the hero.
-import { ENEMIES, SKILLS, ITEMS, ART_OF } from './data.js?v=6';
-import { ENEMY_ART } from './enemy_art.js?v=6';
-import { CAST } from './people_art.js?v=6';
-import * as R from './rules.js?v=6';
-import { t, STR } from './ui.js?v=6';
-import { hex } from './tiles.js?v=6';
+import { ENEMIES, SKILLS, ITEMS, ART_OF } from './data.js?v=7';
+import { ENEMY_ART } from './enemy_art.js?v=7';
+import { CAST } from './people_art.js?v=7';
+import * as R from './rules.js?v=7';
+import { t, STR } from './ui.js?v=7';
+import { hex } from './tiles.js?v=7';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const imgs = {};
 function img(src) { if (!imgs[src]) { imgs[src] = new Image(); imgs[src].src = src; } return imgs[src]; }
-export function preloadBattleArt() { img('assets/enemies.png?v=6'); for (const c of Object.values(CAST)) img(c.portrait); }
+export function preloadBattleArt() { img('assets/enemies.png?v=7'); for (const c of Object.values(CAST)) img(c.portrait); }
 
 const SCENES = {   // backdrop strip colours (NES indexes): sky, far, near
   grass: [0x21, 0x1A, 0x0A], forest: [0x0A, 0x0B, 0x1A], hill: [0x21, 0x19, 0x09], sand: [0x31, 0x27, 0x17], swamp: [0x0C, 0x0B, 0x04],
@@ -40,7 +40,7 @@ export async function battle(G, foeId, opts = {}) {
   const scene = SCENES[opts.scene] || SCENES.grass;
   let art = null, src = null;
   if (E.por) { src = img(CAST[E.por].portrait); art = { x: 0, y: 0, w: 48, h: 56, por: 1 }; }
-  else { src = img('assets/enemies.png?v=6'); art = ENEMY_ART[ART_OF(foeId)]; }
+  else { src = img('assets/enemies.png?v=7'); art = ENEMY_ART[ART_OF(foeId)]; }
   // whole device pixels per art pixel (k/3 on the 160x120 stage); bigger pictures step down so they always fit
   const k = art.por ? 6 : Math.max(3, Math.min(E.big ? 7 : 6, Math.floor(348 / art.h), Math.floor(468 / art.w)));
   const scale = k / 3;
