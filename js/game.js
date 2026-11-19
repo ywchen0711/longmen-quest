@@ -1,13 +1,13 @@
 // The game: where the hero is, walking on tile maps, people and their scripts, chests, doors, encounters, menus,
 // inns, shops, saving and the story's turning points. The view only draws what this holds.
-import { MAPS, PLACES, TILES, L } from './maps.js?v=3';
-import { WORLD, WORLD_W, WORLD_H, PLACE_AT } from './world_map.js?v=3';
-import { ITEMS, SKILLS, SHOPS, ENEMIES, ZONES, zoneAt, ENCOUNTER } from './data.js?v=3';
-import { PEOPLE, CAST } from './people_art.js?v=3';
-import { ENEMY_ART } from './enemy_art.js?v=3';
-import * as R from './rules.js?v=3';
-import { battle } from './battle.js?v=3';
-import { t, STR, getLang, setLang, nameOf } from './ui.js?v=3';
+import { MAPS, PLACES, TILES, L } from './maps.js?v=4';
+import { WORLD, WORLD_W, WORLD_H, PLACE_AT } from './world_map.js?v=4';
+import { ITEMS, SKILLS, SHOPS, ENEMIES, ZONES, zoneAt, ENCOUNTER, RARE, RARE_CHANCE, MONEY_FOE, ART_OF } from './data.js?v=4';
+import { PEOPLE, CAST } from './people_art.js?v=4';
+import { ENEMY_ART, ENEMY_INFO } from './enemy_art.js?v=4';
+import * as R from './rules.js?v=4';
+import { battle } from './battle.js?v=4';
+import { t, STR, getLang, setLang, nameOf } from './ui.js?v=4';
 
 const DIRS = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
 const SAVE_KEYS = ['lq_slot1', 'lq_slot2', 'lq_slot3'];
@@ -26,6 +26,7 @@ export function lookOf(s) {
     return look;
   }
   if (PEOPLE[s] && !Array.isArray(PEOPLE[s])) { const f = PEOPLE[s]; const a = [[f.x, f.y, f.w, f.h, 0], [f.x, f.y, f.w, f.h, 0, null, { x: f.x, y: f.y, rows: 4, mirror: true }]]; return { sheet: 'npcs', frames: { down: a, side: a, up: a } }; }
+  if (ENEMY_ART[s] && ENEMY_ART[s].f) { const [x, y, w, h] = ENEMY_ART[s].f; const a = [[x, y, w, h, 0], [x + w, y, w, h, 0]]; return { sheet: 'enemies', cw: w, ch: h, scale: s.startsWith('bx_') ? 1.5 : 1, frames: { down: a, side: a, up: a } }; }
   if (ENEMY_ART[s]) { const f = ENEMY_ART[s]; const a = [[f.x, f.y, f.w, f.h, 0], [f.x, f.y, f.w, f.h, 0]]; return { sheet: 'enemies', cw: Math.ceil(f.w / 8) * 8, ch: f.h, frames: { down: a, side: a, up: a } }; }
   return lookOf('man');
 }
@@ -109,6 +110,7 @@ export class Game {
       const [bx, by] = this.findDigit(M, 'z');
       this.npcs.push({ key: 'boss', boss: M.boss, s: M.boss.s || M.boss.art, x: bx, y: by, hx: bx, hy: by, dir: 'down', walk: false, t: 0 });
     }
+    for (const b of M.beasts || []) if (!this.flags[b.flag]) this.npcs.push({ key: 'beast_' + b.id, boss: b, beast: 1, s: b.id, x: b.x, y: b.y, hx: b.x, hy: b.y, dir: 'down', walk: false, t: 0 });
   }
   setupActors() {
     const v = this.view; this.heroA = v.actor('hero', lookOf('yirui'));
@@ -204,7 +206,9 @@ export class Game {
     if (this.encCool > 0) { this.encCool--; return; }
     if (this.noEnc || !pool || Math.random() >= rate) return;
     let id = pool[Math.floor(Math.random() * pool.length)];
-    if (id === 'e_toad3' && Math.random() < 0.7) id = pool[0];
+    if (id === MONEY_FOE && Math.random() < 0.7) id = pool[0];
+    const rare = this.map === 'world' && RARE[zoneAt(this.x, this.y)];
+    if (rare && Math.random() < RARE_CHANCE) id = rare[c] || rare.any;
     if (this.ward > 0 && ENEMIES[id].atk < R.heroDef(this.hero) * 1.2) return;
     this.encCool = 3;
     await this.fight(id, { scene });
@@ -293,6 +297,7 @@ export class Game {
   async bossFight(n) {
     const B = n.boss;
     for (const [who, l] of B.pre) await this.ui.say(who, l);
+    if (B.ask && !(await this.ui.yesno(B.ask))) return;
     const scene = { forest: 'forest', fort: 'fort', sea: 'sea', tower: 'tower', tomb: 'tomb', ice: 'snow', snowpeak: 'snow', lair: 'lair' }[this.M.theme] || 'cave';
     const r = await this.fight(B.id, { scene, final: B.final });
     if (r !== 'win') return;
@@ -414,17 +419,36 @@ export class Game {
       const ui = this.ui, h = this.hero;
       for (;;) {
         const panel = ui.panel('fieldstat', this.statusHTML(true));
-        const c = await ui.choose([STR.skill, STR.item, STR.equip, STR.status, STR.config, STR.close], { cls: 'fieldmenu', ctx: 'field' });
+        const c = await ui.choose([STR.skill, STR.item, STR.equip, STR.status, STR.config, STR.book, STR.close], { cls: 'fieldmenu', ctx: 'field' });
         panel.remove();
-        if (c < 0 || c === 5) break;
+        if (c < 0 || c === 6) break;
         if (c === 0) { if (await this.fieldSkill()) break; }
         else if (c === 1) { if (await this.itemMenu()) break; }
         else if (c === 2) await this.equipMenu();
         else if (c === 3) { const p = ui.panel('statuswin', this.statusHTML(false)); await ui.choose([STR.close], { cls: 'tiny', ctx: 'close' }); p.remove(); }
         else if (c === 4) await this.settings();
+        else if (c === 5) await this.bestiary();
       }
     });
     if (this.mode === 'menu') this.mode = 'field';
+  }
+  // 圖鑑: every foe met so far, with its gallery picture, home and story
+  async bestiary() {
+    const seen = this.stats.seen || {};
+    const ids = Object.keys(ENEMIES).filter((id) => seen[id]);
+    if (!ids.length) { await this.ui.say(null, L('還沒有遇過任何敵人。', 'You have not met any foes yet.')); return; }
+    const total = Object.keys(ENEMIES).length;
+    let card = null;
+    const show = (j) => {
+      if (card) card.remove();
+      const id = ids[j], E = ENEMIES[id], info = ENEMY_INFO[ART_OF(id)] || ENEMY_INFO[id];
+      const pic = E.por ? `<div class="bkpic"><img src="assets/people/${E.por}_portrait.png"></div>` : (() => { const a = ENEMY_ART[ART_OF(id)]; return a ? `<div class="bkpic"><div class="bkspr" style="width:${a.w}px;height:${a.h}px;background-position:-${a.x}px -${a.y}px"></div></div>` : ''; })();
+      const meta = info ? `${info.tier ? t(['第' + info.tier + '階', 'Tier ' + info.tier]) + '　' : ''}${t(info.habitat)}` : t(['首領', 'Boss']);
+      const bio = info ? t(info.bio) : '';
+      card = this.ui.panel('bookwin', `${pic}<div class="bktext"><div class="bkname">${t(E)}</div><div class="bkmeta">${meta}</div><div class="bkbio">${bio}</div><div class="bkmeta">${t(['擊敗', 'Defeated'])} ${(this.stats.kills || {})[id] || 0}</div></div>`);
+    };
+    await this.ui.choose(ids.map((id) => ({ label: ENEMIES[id], sub: '' })), { title: L('圖鑑 ' + ids.length + '/' + total, 'Bestiary ' + ids.length + '/' + total), cls: 'booklist', ctx: 'book', onMove: show });
+    if (card) card.remove();
   }
   statusHTML(short) {
     const h = this.hero, s = R.stat(h);

@@ -34,4 +34,11 @@ export const CAST = {
   daoba: { portrait: 'assets/people/daoba_portrait.png', sheet: 'assets/people/daoba_sheet.png', fw: 16, fh: 24, rows: { idle: 0, walk: 1, walk_side: 2 }, frames: 2 },
   shouhou: { portrait: 'assets/people/shouhou_portrait.png', sheet: 'assets/people/shouhou_sheet.png', fw: 16, fh: 24, rows: { idle: 0, walk: 1, walk_side: 2 }, frames: 2 },
   tuqianqiu: { portrait: 'assets/people/tuqianqiu_portrait.png', sheet: 'assets/people/tuqianqiu_sheet.png', fw: 16, fh: 24, rows: { idle: 0, walk: 1, walk_side: 2 }, frames: 2 },
+  tiewusi: { portrait: 'assets/people/tiewusi_portrait.png', sheet: 'assets/people/tiewusi_sheet.png', fw: 16, fh: 24, rows: { idle: 0, walk: 1, walk_side: 2 }, frames: 2 },
+  qianwanli: { portrait: 'assets/people/qianwanli_portrait.png', sheet: 'assets/people/qianwanli_sheet.png', fw: 16, fh: 24, rows: { idle: 0, walk: 1, walk_side: 2 }, frames: 2 },
+  wenruyu: { portrait: 'assets/people/wenruyu_portrait.png', sheet: 'assets/people/wenruyu_sheet.png', fw: 16, fh: 24, rows: { idle: 0, walk: 1, walk_side: 2 }, frames: 2 },
+  xiaolian: { portrait: 'assets/people/xiaolian_portrait.png', sheet: 'assets/people/xiaolian_sheet.png', fw: 16, fh: 24, rows: { idle: 0, walk: 1, walk_side: 2 }, frames: 2 },
+  lihanshan: { portrait: 'assets/people/lihanshan_portrait.png', sheet: 'assets/people/lihanshan_sheet.png', fw: 16, fh: 24, rows: { idle: 0, walk: 1, walk_side: 2 }, frames: 2 },
+  yuweng: { portrait: 'assets/people/yuweng_portrait.png', sheet: 'assets/people/yuweng_sheet.png', fw: 16, fh: 24, rows: { idle: 0, walk: 1, walk_side: 2 }, frames: 2 },
+  guimian: { portrait: 'assets/people/guimian_portrait.png', sheet: 'assets/people/guimian_sheet.png', fw: 16, fh: 24, rows: { idle: 0, walk: 1, walk_side: 2 }, frames: 2 },
 };

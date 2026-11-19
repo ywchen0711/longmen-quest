@@ -19,7 +19,8 @@ Characters:
 - Abbot 苦禪 of the Thousand Buddha Temple, who teaches you an art.
 - 冷笑天 on Dragonspine Peak, a proud rival who respects a good blade.
 - The bandits 瘦猴, 刀疤 and 黑熊.
-- 屠千秋, master of the Netherworld Sect.
+- 屠千秋, master of the Netherworld Sect, and his 鬼面護法 (Ghost-mask Warden).
+- In the towns: 鐵無私 the constable and 錢萬里 the treasurer with his clerk 溫如玉 (Nanling), the one-armed fisherman (Linjiang Ferry), 小蓮 (Cold River Pavilion) and 厲寒山 of the Blood Saber Sect (Red Sand Fort).
 
 ## How it plays
 
@@ -46,7 +47,9 @@ Characters:
   - homeward and slip away (leave a dungeon)
   - ward (keeps weak monsters away)
   - Diamond Body (from the mentor)
-- There are 40 regular enemies, made as palette swaps of 17 designs, and 9 bosses.
+- There are 50 regular enemies in five tiers (the Character Gallery's common foes), a rare stone toad full of silver, and 9 bosses.
+- Big beasts from the gallery: the nine-tailed fox is the Moonwater Siren's true form and the talisman jiangshi is the Jiangshi General. The tiger, the shanxiao, the fire crow and the venom toad sometimes appear in the wild instead of a common foe. The white ape (Hidden Blade Grotto), the river jiao (Moonwater Cave) and the stone lion (fourth floor of the tower) guard rewards as optional fights.
+- 圖鑑 (Bestiary) in the field menu lists every foe met, with its picture, home and story.
 - Bosses follow the same rules as the hero. They are tough only through their stats, the arts any fighter can use, carried wound salves and a smarter AI. Enemies do not scale to your level.
 
 **Saving**
@@ -81,7 +84,7 @@ Characters:
   - `view.js` (three.js HD-2D) and `tiles.js` (NES-palette textures)
   - `ui.js`, `input.js`, `audio.js`
   - `enemy_art.js`, `people_art.js` (generated)
-- `assets/enemies.png`: from `tools/enemies.py`.
+- `assets/enemies.png`: from `tools/gallery.py` (the Character Gallery's foes and beasts, plus the Golden Arhat from `tools/enemies.py`).
 - `assets/people/`: from `tools/people.py`, plus copies of the Character Gallery's 龍門武林 cast.
 - `audio/`: from `tools/music.py`.
 - `lib/`: three.js r160 and its post-processing addons, vendored.
@@ -89,7 +92,7 @@ Characters:
 
 Tools (Python 3, Pillow, numpy, ffmpeg):
 - `python -P tools/world.py` rebuilds the overworld and checks that each place is reachable only once its gates are open.
-- `python -P tools/enemies.py` rebuilds the enemy atlas.
+- `python -P tools/gallery.py` rebuilds the enemy atlas and `js/enemy_art.js` (art, names and bestiary text) from `C:\CharacterGallery`.
 - `python -P tools/people.py` rebuilds the people sprites.
 - `python tools/music.py` re-renders the chiptune soundtrack.
 

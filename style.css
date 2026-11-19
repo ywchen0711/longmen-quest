@@ -50,6 +50,16 @@ body { font-family: 'Cubic11', 'PingFang TC', 'Microsoft JhengHei', monospace; f
 .descwin { top: auto; bottom: 3%; left: 4%; right: 4%; max-width: none; }
 .cmpwin .up { color: #58d854; font-weight: normal; } .cmpwin .down { color: var(--red); font-weight: normal; }
 .shoplist { top: 5%; }
+.booklist { top: 5%; bottom: 3%; max-width: 40%; display: flex; flex-direction: column; }
+.booklist .mlist { position: relative; overflow-y: auto; min-height: 0; scrollbar-width: none; }
+.booklist .mlist::-webkit-scrollbar { display: none; }
+.bookwin { left: 4%; top: 5%; bottom: 3%; width: 50%; z-index: 9; display: flex; flex-direction: column; gap: 0.4em; overflow: hidden; }
+.bkpic { flex: none; height: calc(60px * var(--pz)); display: flex; align-items: flex-end; justify-content: center; }
+.bkpic img { width: calc(48px * var(--pz)); height: calc(56px * var(--pz)); image-rendering: pixelated; }
+.bkspr { flex: none; background-image: url(assets/enemies.png); image-rendering: pixelated; transform: scale(var(--pz)); transform-origin: 50% 100%; }
+.bkname { color: var(--gold); }
+.bkmeta { color: #bcbcbc; font-size: 0.85em; }
+.bkbio { margin: 0.2em 0; font-size: 0.9em; }
 .wide { min-width: 12em; }
 .psn { color: #b8f818; }
 .banner { position: absolute; left: 50%; top: 9%; transform: translateX(-50%); padding: 0.25em 1.2em; border: var(--bd) solid var(--white); border-radius: 0.4em;

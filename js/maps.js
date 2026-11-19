@@ -57,8 +57,8 @@ const longmen = {
     '"",,,,,,,,hhhhhhhhhhhh,,,,,,,""',
     '",hhhhhhh,hkm&mmmm&mkh,hhhhhh,"',
     '",hbooobh,hmmmmAmmmmmh,hoKokh,"',
-    '",hoooooh,htmmtmmtmmth,h====h,"',
-    '",hoocooh,hmmmmmmmmmmh,hooooh,"',
+    '",hcooooh,htmmtmmtmmth,h====h,"',
+    '",hoooooh,hmmmmmmmmmmh,hooooh,"',
     '",hhhohhh,hhhhhmmhhhhh,hhhohh,"',
     '",,,:,,,,,,,,,:mm:,,,,,,,,:,,,"',
     '",f,:,,l,,::::::::::::,,l,:,f,"',
@@ -85,7 +85,7 @@ const longmen = {
         S.set('metBai');
         await S.say('baixian', L('啪！醒木一拍——客官來得巧。今晚這段書，說的正是黑風寨擄人一事。', 'Clack! The block falls. You come at a good moment: tonight\'s tale is of the Black Wind Fort and a stolen boy.'));
         await S.say('baixian', L('黑風寨在北邊群山裡，寨門無令牌不開。令牌嘛……寨中那個叫瘦猴的，最愛躲在黑風林裡偷懶。', 'The fort sits in the northern peaks; its gate opens only for a token. And the token... a lackey called Skinny Monkey likes to idle in the Black Wind Woods.'));
-        await S.say('baixian', L('出了鎮往北，經過青石村，就是黑風林。路上野狗毒蛇不少，先在鎮外練練刀吧。', 'Go north past Qingshi Village to reach the woods. Wild dogs and vipers prowl the road; sharpen your blade near town first.'));
+        await S.say('baixian', L('出了鎮往北，經過青石村，就是黑風林。路上灰狼毒蛇不少，先在鎮外練練刀吧。', 'Go north past Qingshi Village to reach the woods. Grey wolves and vipers prowl the road; sharpen your blade near town first.'));
       }
       await S.storyteller();
     }),
@@ -171,7 +171,7 @@ const linjiang = {
     '",,,:,,,,,,,,,,,:,,,,,~~~',
     '",,,::::::::::::::::eeeee',
     '",f,,,,,,:,,,,,,,,,,A~~~~',
-    '",hhhhh,,:,,,B,,,,,,,~~~~',
+    '",hhhhh,,:,,,,,,,,,,,~~~~',
     '",hoMoh,,:,,,,,,,,f,,~~~~',
     '",h===h,,:,,,,,,,,,,,~~~~',
     '",hoooo,,:,,,,,C,,,,,~~~~',
@@ -192,14 +192,21 @@ const linjiang = {
       await S.say('boatman', L('寨子的人撤了！上船吧，龍門的少俠，這趟不收錢。', 'The bandits have gone! Climb aboard, young hero of Longmen. This one\'s free.'));
       await S.say('boatman', L('（渡口的木棧橋就在村外河邊，走上去就能過河。）', '(The ferry pier is on the riverbank outside the village; step onto it to cross.)'));
     }),
-    B: P('fisherman', async (S) => {
-      await S.say('fisherman', L('河東邊有座南陵城，又大又熱鬧。再往東，寒江閣的女俠們個個劍法了得。', 'East across the river lies Nanling, big and busy. Further east, the swordswomen of the Cold River Pavilion are fearsome.'));
-    }, { walk: 1 }),
+    B: P('yuweng', async (S) => {
+      if (!S.flag('metYuweng')) {
+        S.set('metYuweng');
+        await S.say('yuweng', L('……魚不咬鉤，人倒是來了。', '...The fish won\'t bite, but a man comes along instead.'));
+        await S.say('yuweng', L('你握刀的手太緊。刀是活的，握死了，它就不肯跟你走。', 'You grip your blade too tight. A blade is alive; strangle it and it won\'t follow you.'));
+      }
+      if (!S.flag('jiaoDone')) return S.say('yuweng', L('河東邊有座南陵城。再往東的水月洞裡，除了唱歌的妖女，還有一條沒化成龍的江蛟。去不去，自己掂量。', 'East across the river is Nanling. Further east, in Moonwater Cave, there is the singing witch, and a river jiao that never became a dragon. Weigh it yourself.'));
+      await S.say('yuweng', L('江蛟也服了你？……這條河，今年能太平些了。', 'Even the jiao yielded to you? ...This river may have a quiet year.'));
+    }),
     C: P('woman', async (S) => {
       await S.say('woman', L('你看河上那霧……老人說，東海外的霧比這濃一百倍，誰也過不去。', 'See the mist on the river? The old folk say the fog off the eastern sea is a hundred times thicker. No one gets through.'));
     }, { walk: 1 }),
   },
 };
+linjiang.extra = [['B', 20, 12]];
 
 // ================================================================= 南陵城 Nanling City
 const nanling = {
@@ -229,13 +236,26 @@ const nanling = {
   people: {
     K: P('blacksmith', async (S) => { await S.say('blacksmith', L('南陵刀劍行，江南第一！', 'Nanling Blades, finest in the south!')); await S.shop('nanling'); }),
     L: P('innkeeper', async (S) => { await S.inn(18); }),
-    M: P('merchant', async (S) => { await S.say('merchant', L('燈籠、鑰匙、傷藥，要什麼有什麼。', 'Lanterns, keys, salves: whatever you need.')); await S.shop('nanling_i'); }),
+    M: P('qianwanli', async (S) => {
+      await S.say('qianwanli', L('萬里號，童叟無欺！燈籠、鑰匙、傷藥，一文一釐都算得清清楚楚。', 'The Wanli Store: fair to young and old! Lanterns, keys, salves, every copper counted true.'));
+      await S.shop('nanling_i');
+    }),
+    W: P('wenruyu', async (S) => {
+      if (S.flag('causeway')) return S.say('wenruyu', L('失禮了……東海的霧散了？我得記進帳本裡：這筆，是龍門記的。', 'Pardon me... the fog over the sea has lifted? I must enter it in the ledger: this one goes to Longmen\'s account.'));
+      await S.say('wenruyu', L('失禮了。在下溫如玉，替錢掌櫃記帳。', 'Pardon me. I am Wen Ruyu; I keep the books for Master Qian.'));
+      await S.say('wenruyu', L('沙海古墓的門鎖多，進去前請多買幾把鑰匙……啊，這不是在幫掌櫃做生意，是真心話。', 'The Sand Sea Tomb has many locks; buy a few keys before you go... ah, that isn\'t salesmanship for my master. I mean it.'));
+    }),
     A: P('scholar', async (S) => {
       await S.say('scholar', L('三十年前，正派聯手剿滅幽冥教，教主屠千秋墜海，屍骨無存。', 'Thirty years ago the righteous sects destroyed the Netherworld Sect. Its master, Tu Qianqiu, fell into the sea; no body was found.'));
       await S.say('scholar', L('後來東海就起了霧，再沒散過。', 'Since then a fog has lain over the eastern sea, and it has never lifted.'));
     }),
-    B: P('guard', async (S) => {
-      await S.say('guard', L('北邊斷崖的吊橋斷了好些年。寒江閣的人倒是有法子過崖。', 'The rope bridge over the northern chasm broke years ago. The Cold River folk have a way across, though.'));
+    B: P('tiewusi', async (S) => {
+      if (!S.flag('metTie')) {
+        S.set('metTie');
+        await S.say('tiewusi', L('武林盟執法堂，鐵無私。報上名來。', 'Tie Wusi, of the Alliance\'s Hall of Law. Your name.'));
+        await S.say('tiewusi', L('……龍門刀莊的？你弟弟的案子，我聽說了。黑風寨的嘍囉不足為慮，背後出錢的人，才是正主。', '...Of the Longmen Saber Manor? I heard about your brother. The Black Wind rabble are nothing; the one who paid them is the real culprit.'));
+      }
+      await S.say('tiewusi', L('北邊斷崖的吊橋斷了好些年。寒江閣的人有法子過崖。記住：只認證據，不認交情。', 'The rope bridge over the northern chasm broke years ago. The Cold River folk have a way across. Remember: evidence, not friendship.'));
     }, { walk: 1 }),
     C: P('dancer', async (S) => {
       await S.say('dancer', L('寒江閣的柳閣主，人美劍更美。只是最近水月洞鬧鬼，她愁得很。', 'Mistress Liu of the Cold River Pavilion: lovely, and her sword lovelier. But a haunting at Moonwater Cave troubles her.'));
@@ -251,6 +271,7 @@ const nanling = {
     }, { walk: 1 }),
   },
 };
+nanling.extra = [['W', 3, 13]];
 
 // ================================================================= 寒江閣 Cold River Pavilion
 const hanjiang = {
@@ -298,8 +319,14 @@ const hanjiang = {
       await S.say('nun', L('妖姬會點穴，被她定住就只能挨打。帶夠金創藥！', 'The siren strikes pressure points: once you\'re frozen, you can only take the blows. Bring plenty of salve!'));
     }, { walk: 1 }),
     C: P('fisherman', async (S) => { await S.say('fisherman', L('從這裡往東走到海邊，就是望海村。', 'Walk east from here to the sea and you reach Wanghai Village.')); }, { walk: 1 }),
+    X: P('xiaolian', async (S) => {
+      if (S.flag('yaojiDone')) return S.say('xiaolian', L('你真的打贏妖姬啦？聽說她其實是一隻九尾狐！下次帶我去看嘛！', 'You really beat the siren? They say she was a nine-tailed fox! Take me along next time!'));
+      await S.say('xiaolian', L('我是小蓮，師父的徒弟！你是奕碩哥哥的哥哥？他的球踢得好遠！', 'I\'m Xiaolian, Mistress Liu\'s disciple! You\'re Yi Shuo\'s big brother? He kicks his ball so far!'));
+      await S.say('xiaolian', L('師父不准我去水月洞……可是我偷看到了，洞裡的影子有好多條尾巴！', 'Master won\'t let me go to Moonwater Cave... but I peeked, and the shadow in there has lots of tails!'));
+    }, { walk: 1 }),
   },
 };
+hanjiang.extra = [['X', 15, 13]];
 
 // ================================================================= 千佛寺 Thousand Buddha Temple
 const qianfo = {
@@ -342,7 +369,7 @@ const qianfo = {
     }),
     K: P('monk', async (S) => { await S.shop('qianfo'); }),
     L: P('monk', async (S) => { await S.inn(15); }),
-    B: P('monk', async (S) => { await S.say('monk', L('千佛塔就在寺後東邊的山上。塔中木人、銅人，都是練武用的，下手可不輕。', 'The tower stands on the hill east behind the temple. The wooden and bronze men inside are training dummies, and they hit hard.')); }, { walk: 1 }),
+    B: P('monk', async (S) => { await S.say('monk', L('千佛塔就在寺後東邊的山上。塔中的銅人是練武用的，下手可不輕；還有被逐出寺門的惡僧躲在裡面。', 'The tower stands on the hill east behind the temple. The bronze men inside are for training, and they hit hard; and monks expelled from the temple hide in there.')); }, { walk: 1 }),
     C: P('monk', async (S) => { await S.say('monk', L('往東翻過雪嶺就是龍脊峰，冷得很。', 'East over the snowy ridge is Dragonspine Peak. Bitter cold.')); }, { walk: 1 }),
   },
 };
@@ -378,10 +405,16 @@ const chisha = {
     B: P('oldman', async (S) => {
       await S.say('oldman', L('殭屍會用屍毒，中了毒要趕快吃解毒草。', 'Jiangshi carry corpse venom. If you\'re poisoned, eat an antidote herb quickly.'));
     }, { walk: 1 }),
-    C: P('dancer', async (S) => { await S.say('dancer', L('金蟾是財神爺的寵物！見到了別讓牠跑了。', 'The golden toad is the god of wealth\'s pet! Don\'t let it get away.')); }, { walk: 1 }),
+    C: P('dancer', async (S) => { await S.say('dancer', L('三足石蟾嘴裡含著銅錢，是財神爺的寵物！見到了別讓牠跑了。', 'The three-legged stone toad holds a coin in its mouth: the god of wealth\'s pet! Don\'t let it get away.')); }, { walk: 1 }),
     N: P('scholar', async (S) => { await S.say('scholar', L('三符合一，霧開潮退……這是我在古書上讀到的。', '"Three seals made one: the fog opens, the tide withdraws." I read it in an old book.')); }),
+    H: P('lihanshan', async (S) => {
+      await S.say('lihanshan', L('……血刀門，厲寒山。', '...Li Hanshan, of the Blood Saber Sect.'));
+      await S.say('lihanshan', L('北邊雪嶺上那些紅衣打手是我門下的？哼，拿了幽冥教的錢，就不再是了。你砍了他們，不算得罪我。', 'Those red-clad thugs on the northern snow ridges, mine? Hmph. Once they took the Netherworld\'s silver, they stopped being mine. Cut them down; you won\'t offend me.'));
+      await S.say('lihanshan', L('沙海上空有三隻腳的火鴉。遇上了，別硬拚。我這輩子最恨一個「輸」字——你也該學著恨它。', 'A three-legged fire crow flies over the sand sea. If you meet it, don\'t trade blows blindly. All my life I have hated one word, "lose". Learn to hate it too.'));
+    }),
   },
 };
+chisha.extra = [['H', 22, 13]];
 
 // ================================================================= 望海村 Wanghai Village (east coast)
 const wanghai = {
@@ -552,8 +585,8 @@ const sy1 = {
     '#.#.####..#.~~~..#.####..#',
     '#...#..#....~~~..........#',
     '###.#..####.eee.#####.####',
-    '#...#.......~~~.....#....#',
-    '#.###.~~~~..~~~..c..#..r.#',
+    '#...#.......~~~.....#.~~~#',
+    '#.###.~~~~..~~~..c..#..~~#',
     '#.....~~~~..........#....#',
     '############..############',
     '           #..#           ',
@@ -561,6 +594,10 @@ const sy1 = {
   start: [12, 13],
   chests: [{ item: 'antidote' }, { item: 'herb' }],
   links: { 1: ['sy2', 1] },
+  beasts: [{ id: 'bx_jiao', flag: 'jiaoDone', x: 22, y: 10, give: 'a3',
+    pre: [[null, L('潭水翻起白浪，一條青鱗長鬚的江蛟昂起了頭。', 'The pool churns white. A green-scaled river jiao with long whiskers lifts its head.')]],
+    ask: L('要和江蛟交手嗎？', 'Fight the river jiao?'),
+    post: [[null, L('江蛟長嘯一聲，沉回潭底。水面上浮起一副鐵鱗甲。', 'The jiao gives a long cry and sinks back into the pool. An iron-scale coat floats up to the surface.')]] }],
 };
 const sy2 = {
   name: L('水月洞深處', 'Moonwater Grotto'), theme: 'sea', music: 'dungeon', floor: '.', enc: 'shuiyue', rate: 1 / 16,
@@ -579,10 +616,11 @@ const sy2 = {
   ],
   chests: [{ item: 'a2' }, { gold: 200 }],
   links: { 1: ['sy1', 1] },
-  boss: { id: 'b_yaoji', flag: 'yaojiDone', art: 'b_yaoji',
+  boss: { id: 'b_yaoji', flag: 'yaojiDone', art: 'bx_fox',
     pre: [[null, L('洞裡傳來幽幽的歌聲……一個白衣女子從水面升起。', 'A faint song echoes through the cave... a woman in white rises from the water.')],
-          [null, L('「又一個……來陪我的人……」', '"Another one... come to keep me company..."')]],
-    post: [[null, L('妖姬化作一陣水霧，散了。洞裡的歌聲停了。', 'The siren dissolves into mist. The singing stops.')]] },
+          [null, L('「又一個……來陪我的人……」', '"Another one... come to keep me company..."')],
+          [null, L('水面映出的不是女子的影子——是一隻九條尾巴的金毛狐狸！', 'The reflection on the water is no woman\'s: it is a golden fox with nine tails!')]],
+    post: [[null, L('九尾狐化作一陣水霧，散了。洞裡的歌聲停了。', 'The nine-tailed fox dissolves into mist. The singing stops.')]] },
 };
 
 // 千佛塔 Thousand Buddha Tower: five small floors; the Golden Arhat at the top
@@ -639,7 +677,11 @@ const t4 = T([
   '#####:#####:#:#',
   '#:::::::::::::3',
   '###############',
-], { enc: 'tower2', chests: [{ gold: 300 }], links: { 3: ['t3', 3], 4: ['t5', 4] } });
+], { enc: 'tower2', chests: [{ gold: 300 }], links: { 3: ['t3', 3], 4: ['t5', 4] },
+  beasts: [{ id: 'bx_lion', flag: 'lionDone', x: 11, y: 8, give: 'c4',
+    pre: [[null, L('寶箱前蹲著一隻長滿青苔的石獅。你一走近，牠的眼睛亮起了紅光。', 'A moss-grown stone lion crouches before the chest. As you come near, its eyes glow red.')]],
+    ask: L('要和石獅交手嗎？', 'Fight the stone lion?'),
+    post: [[null, L('石獅的紅光熄了，口中的石珠滾落下來——裡面裹著一副金絲護腕。', 'The red light in the lion\'s eyes dies; the stone ball rolls from its mouth, and inside is a gold-thread bracer.')]] }] });
 const t5 = T([
   '###############',
   '#u:::::::::::u#',
@@ -709,8 +751,8 @@ const tb3 = TB([
   '#...#....m....#...#',
   '#########2#########',
 ], { enc: 'tomb', chests: [{ item: 'qipill' }, { gold: 500 }], links: { 2: ['tb2', 2] },
-  boss: { id: 'b_jiangjun', flag: 'jiangjunDone', art: 'b_jiangjun',
-    pre: [[null, L('石棺蓋轟然落地。一具披甲的殭屍直挺挺地跳了出來！', 'A coffin lid crashes to the floor. An armoured corpse springs upright!')],
+  boss: { id: 'b_jiangjun', flag: 'jiangjunDone', art: 'bx_jiangshi',
+    pre: [[null, L('石棺蓋轟然落地。一具穿紫色官服、額貼黃符的殭屍直挺挺地跳了出來！', 'A coffin lid crashes to the floor. A corpse in purple court robes, a yellow talisman on its brow, springs upright!')],
           [null, L('「……擅闖……將軍墓者……死……」', '"...Who trespasses... in the general\'s tomb... dies..."')]],
     post: [[null, L('殭屍將軍倒下，再也沒有起來。它的手中緊握著地符。', 'The Jiangshi General falls and does not rise. In its fist is the Earth Seal.')]],
     give: 'di' } });
@@ -795,6 +837,10 @@ const cangjian = {
   start: [11, 11],
   chests: [{ item: 'w6' }, { item: 'c2' }],
   people: {},
+  beasts: [{ id: 'bx_ape', flag: 'apeDone', x: 5, y: 7, give: 'fruit',
+    pre: [[null, L('石室裡蹲著一隻白毛長臂的大猿，懷裡護著一顆紅通通的果子。', 'In the chamber squats a great long-armed white ape, guarding a bright red fruit.')]],
+    ask: L('要向白猿討教嗎？', 'Challenge the white ape?'),
+    post: [[null, L('白猿收了手，打量你半晌，把朱果遞了過來。', 'The ape lowers its arms, studies you a long while, and hands you the crimson fruit.')]] }],
   tablet: L('石壁上刻著：「刀藏於鞘，鋒藏於心。」', 'Carved in the rock: "The blade hides in its sheath; the edge hides in the heart."'),
 };
 
@@ -839,9 +885,9 @@ const l3 = LR([
   '#........c.c........#',
   '#####################',
 ], { chests: [{ item: 'herb' }, { item: 'qipill' }], links: { 2: ['l2', 2], 3: ['l4', 3] },
-  boss: { id: 'b_hufa', flag: 'hufaDone', art: 'b_hufa', guard: 1,
+  boss: { id: 'b_hufa', flag: 'hufaDone', s: 'guimian', guard: 1,
     pre: [[null, L('一個戴著鬼面的高大身影擋在路中央。', 'A tall figure in a ghost mask blocks the way.')],
-          [null, L('「教主有令：龍門的人，一個也不許過去。」', '"The master\'s orders: no one from Longmen passes."')]],
+          ['guimian', L('教主有令：龍門的人，一個也不許過去。', 'The master\'s orders: no one from Longmen passes.')]],
     post: [[null, L('鬼面護法跪倒在地，面具裂成兩半。', 'The warden falls to his knees; his mask splits in two.')]] } });
 const l4 = LR([
   '###################',

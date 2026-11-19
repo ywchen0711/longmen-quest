@@ -5,7 +5,7 @@
 
 Writes assets/people/npcs.png (one atlas, 1x pixels, transparent, 1px gap) and js/people_art.js:
   PEOPLE  rects per sprite id (front views 16x24; hero_back / yishuo_back are lists of walk frames)
-  CAST    the ten named Longmen characters, copied from the Character Gallery exports
+  CAST    the named Longmen characters, copied from the Character Gallery exports
           (C:\\CharacterGallery\\chars\\<id>\\nes\\) to assets/people/<id>_portrait.png and <id>_sheet.png.
 
 Same rules as the gallery's `nes` field sprites (C:\\CharacterGallery\\src\\nes_sprites.py): 16x24, typed as rows of
@@ -634,7 +634,8 @@ npc('beggar', 0x08, '''
 
 ORDER = ['man', 'woman', 'oldman', 'oldwoman', 'child', 'guard', 'merchant', 'innkeeper', 'monk', 'nun', 'boatman',
          'bandit', 'cultist', 'scholar', 'blacksmith', 'fisherman', 'dancer', 'beggar', 'hero_back', 'yishuo_back']
-CAST = ['yirui', 'yishuo', 'xiaotian', 'baixian', 'liuhanyan', 'kuchan', 'heixiong', 'daoba', 'shouhou', 'tuqianqiu']
+CAST = ['yirui', 'yishuo', 'xiaotian', 'baixian', 'liuhanyan', 'kuchan', 'heixiong', 'daoba', 'shouhou', 'tuqianqiu',
+        'tiewusi', 'qianwanli', 'wenruyu', 'xiaolian', 'lihanshan', 'yuweng', 'guimian']
 
 
 def build():

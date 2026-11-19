@@ -1,11 +1,11 @@
 // Front-view one-on-one battles in pure 8-bit style. Rounds: the hero picks a command, then hero and foe act in
 // order of agility (with a little luck). Everything the foe does goes through the same rules as the hero.
-import { ENEMIES, SKILLS, ITEMS, ART_OF } from './data.js?v=3';
-import { ENEMY_ART } from './enemy_art.js?v=3';
-import { CAST } from './people_art.js?v=3';
-import * as R from './rules.js?v=3';
-import { t, STR } from './ui.js?v=3';
-import { hex } from './tiles.js?v=3';
+import { ENEMIES, SKILLS, ITEMS, ART_OF } from './data.js?v=4';
+import { ENEMY_ART } from './enemy_art.js?v=4';
+import { CAST } from './people_art.js?v=4';
+import * as R from './rules.js?v=4';
+import { t, STR } from './ui.js?v=4';
+import { hex } from './tiles.js?v=4';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const imgs = {};
@@ -20,6 +20,7 @@ const SCENES = {   // backdrop strip colours (NES indexes): sky, far, near
 
 export async function battle(G, foeId, opts = {}) {
   const ui = G.ui, au = G.audio, h = G.hero, E = ENEMIES[foeId];
+  (G.stats.seen = G.stats.seen || {})[foeId] = 1;   // for the bestiary
   const foe = { id: foeId, ...E, hp: E.hp, maxHp: E.hp, mp: E.mp ?? 999, items: E.items || 0, sleep: 0, sealed: false, guard: 1, fled: false };
   const me = { sleep: 0, sealed: false, guard: 1 };
   const fname = t(E);
@@ -251,6 +252,6 @@ export async function battle(G, foeId, opts = {}) {
   alive = false; cancelAnimationFrame(raf);
   if (!fast) { root.classList.add('leave'); await sleep(250); root.classList.remove('leave'); }
   root.classList.add('hidden'); root.innerHTML = '';
-  G.stats.battles++; if (result === 'win') G.stats.wins++;
+  G.stats.battles++; if (result === 'win') { G.stats.wins++; const k = (G.stats.kills = G.stats.kills || {}); k[foeId] = (k[foeId] || 0) + 1; }
   return result;
 }

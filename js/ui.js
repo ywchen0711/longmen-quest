@@ -1,6 +1,6 @@
 // 8-bit windows: black boxes with white rounded borders and the Cubic 11 pixel font. Messages type out, menus
 // move a ▶ cursor. Every prompt returns a promise. A test driver (UI.driver) may answer prompts instead of a person.
-import { CAST } from './people_art.js?v=3';
+import { CAST } from './people_art.js?v=4';
 
 export const STR = {
   attack: ['攻擊', 'Attack'], skill: ['武功', 'Arts'], item: ['道具', 'Items'], run: ['逃走', 'Run'],
@@ -14,7 +14,7 @@ export const STR = {
   qlow: ['低', 'Low'], qmed: ['中', 'Medium'], qhigh: ['高', 'High'],
   newgame: ['開始新的旅程', 'New Journey'], cont: ['繼續（自動記錄）', 'Continue (autosave)'], load: ['讀取記錄', 'Load'],
   slot: ['記錄', 'Record'], empty: ['（空白）', '(empty)'], gp: ['兩', 'g'],
-  use: ['使用', 'Use'], toss: ['丟掉', 'Drop'], who: ['', ''],
+  book: ['圖鑑', 'Bestiary'], use: ['使用', 'Use'], toss: ['丟掉', 'Drop'], who: ['', ''],
 };
 let lang = 'zh';
 try { const l = localStorage.getItem('lq_lang'); if (l === 'en' || l === 'zh') lang = l; } catch (e) {}
@@ -32,6 +32,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const NAMES = {
   yirui: ['奕叡', 'Yi Rui'], yishuo: ['奕碩', 'Yi Shuo'], baixian: ['白先生', 'Mr Bai'], liuhanyan: ['柳寒煙', 'Liu Hanyan'], kuchan: ['苦禪', 'Kuchan'],
   xiaotian: ['冷笑天', 'Leng Xiaotian'], heixiong: ['黑熊', 'Black Bear'], daoba: ['刀疤', 'Scar'], shouhou: ['瘦猴', 'Skinny Monkey'], tuqianqiu: ['屠千秋', 'Tu Qianqiu'],
+  tiewusi: ['鐵無私', 'Tie Wusi'], qianwanli: ['錢萬里', 'Qian Wanli'], wenruyu: ['溫如玉', 'Wen Ruyu'], xiaolian: ['小蓮', 'Xiaolian'], lihanshan: ['厲寒山', 'Li Hanshan'],
+  yuweng: ['獨臂漁翁', 'One-Armed Fisherman'], guimian: ['鬼面護法', 'Ghost-mask Warden'],
   oldman: ['老人', 'Old man'], woman: ['婦人', 'Woman'], man: ['村民', 'Villager'], child: ['孩子', 'Child'], guard: ['守衛', 'Guard'], merchant: ['商人', 'Merchant'],
   innkeeper: ['掌櫃', 'Innkeeper'], monk: ['僧人', 'Monk'], nun: ['寒江弟子', 'Cold River disciple'], boatman: ['船夫', 'Boatman'], scholar: ['書生', 'Scholar'],
   blacksmith: ['鐵匠', 'Smith'], fisherman: ['漁夫', 'Fisherman'], dancer: ['姑娘', 'Girl'], beggar: ['乞丐', 'Beggar'], oldwoman: ['老婆婆', 'Old woman'],
@@ -84,7 +86,12 @@ export class UI {
       const list = this.el('div', 'mlist', w); const cols = opts.cols || 1; list.style.gridTemplateColumns = `repeat(${cols}, auto)`;
       const rows = items.map((it, i) => { const r = this.el('div', 'mi' + (it.disabled ? ' dis' : ''), list); const a = this.el('span', 'cur', r); a.textContent = '▶'; const l = this.el('span', 'lab', r); l.textContent = t(it.label); if (it.sub != null) { const s = this.el('span', 'sub', r); s.textContent = t(it.sub); } r.addEventListener('click', () => { idx = i; draw(); pick(); }); return r; });
       let idx = Math.min(opts.start || 0, items.length - 1);
-      const draw = () => { rows.forEach((r, i) => r.classList.toggle('on', i === idx)); if (opts.onMove) opts.onMove(idx); };
+      const draw = () => {
+        rows.forEach((r, i) => r.classList.toggle('on', i === idx));
+        const r = rows[idx];   // keep the cursor in view in a scrolling list
+        if (r && list.scrollHeight > list.clientHeight) { if (r.offsetTop < list.scrollTop) list.scrollTop = r.offsetTop; else if (r.offsetTop + r.offsetHeight > list.scrollTop + list.clientHeight) list.scrollTop = r.offsetTop + r.offsetHeight - list.clientHeight; }
+        if (opts.onMove) opts.onMove(idx);
+      };
       const finish = (v) => { off(); w.remove(); res(v); };
       const pick = () => { if (items[idx].disabled) { this.audio.sfx('bump'); return; } this.audio.sfx('ok'); if (opts.keepOpen) { off(); res({ index: idx, close: () => w.remove() }); } else finish(idx); };
       const off = this.input.push((k) => {
