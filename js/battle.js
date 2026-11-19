@@ -1,16 +1,16 @@
 // Front-view one-on-one battles in pure 8-bit style. Rounds: the hero picks a command, then hero and foe act in
 // order of agility (with a little luck). Everything the foe does goes through the same rules as the hero.
-import { ENEMIES, SKILLS, ITEMS, ART_OF } from './data.js?v=4';
-import { ENEMY_ART } from './enemy_art.js?v=4';
-import { CAST } from './people_art.js?v=4';
-import * as R from './rules.js?v=4';
-import { t, STR } from './ui.js?v=4';
-import { hex } from './tiles.js?v=4';
+import { ENEMIES, SKILLS, ITEMS, ART_OF } from './data.js?v=5';
+import { ENEMY_ART } from './enemy_art.js?v=5';
+import { CAST } from './people_art.js?v=5';
+import * as R from './rules.js?v=5';
+import { t, STR } from './ui.js?v=5';
+import { hex } from './tiles.js?v=5';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const imgs = {};
 function img(src) { if (!imgs[src]) { imgs[src] = new Image(); imgs[src].src = src; } return imgs[src]; }
-export function preloadBattleArt() { img('assets/enemies.png'); for (const c of Object.values(CAST)) img(c.portrait); }
+export function preloadBattleArt() { img('assets/enemies.png?v=5'); for (const c of Object.values(CAST)) img(c.portrait); }
 
 const SCENES = {   // backdrop strip colours (NES indexes): sky, far, near
   grass: [0x21, 0x1A, 0x0A], forest: [0x0A, 0x0B, 0x1A], hill: [0x21, 0x19, 0x09], sand: [0x31, 0x27, 0x17], swamp: [0x0C, 0x0B, 0x04],
@@ -40,7 +40,7 @@ export async function battle(G, foeId, opts = {}) {
   const scene = SCENES[opts.scene] || SCENES.grass;
   let art = null, src = null;
   if (E.por) { src = img(CAST[E.por].portrait); art = { x: 0, y: 0, w: 48, h: 56, por: 1 }; }
-  else { src = img('assets/enemies.png'); art = ENEMY_ART[ART_OF(foeId)]; }
+  else { src = img('assets/enemies.png?v=5'); art = ENEMY_ART[ART_OF(foeId)]; }
   const scale = art.por ? 2 : (E.big ? 2.4 : 2);
   const fx = { flash: 0, shake: 0, alpha: 1, dissolve: 0, parts: [], slash: 0, heal: 0 };
   let alive = true, raf = 0, last = performance.now();

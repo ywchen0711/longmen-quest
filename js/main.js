@@ -1,12 +1,12 @@
 // Boot: build the view, the title screen, the opening, and run the fixed-timestep loop.
-import { View, pickQuality, loadImage, registerSheet } from './view.js?v=4';
-import { Input } from './input.js?v=4';
-import { UI, t, STR, getLang, setLang } from './ui.js?v=4';
-import { Audio } from './audio.js?v=4';
-import { Game, mapName } from './game.js?v=4';
-import { CAST, PEOPLE_IMAGE } from './people_art.js?v=4';
-import { preloadBattleArt } from './battle.js?v=4';
-import { PLACE_AT } from './world_map.js?v=4';
+import { View, pickQuality, loadImage, registerSheet } from './view.js?v=5';
+import { Input } from './input.js?v=5';
+import { UI, t, STR, getLang, setLang } from './ui.js?v=5';
+import { Audio } from './audio.js?v=5';
+import { Game, mapName } from './game.js?v=5';
+import { CAST, PEOPLE_IMAGE } from './people_art.js?v=5';
+import { preloadBattleArt } from './battle.js?v=5';
+import { PLACE_AT } from './world_map.js?v=5';
 
 const params = new URLSearchParams(location.search);
 const NORENDER = params.has('norender');
@@ -79,7 +79,7 @@ function titlePan(dt) { panT += dt; view.frame(dt, { x: 26 + Math.sin(panT * 0.0
 // ---------------------------------------------------------------- title
 async function title() {
   G.mode = 'title';
-  if (view) { const pl = {}; const { PLACES } = await import('./maps.js?v=4'); for (const [k, [x, y]] of Object.entries(PLACE_AT)) pl[k] = [x, y, PLACES[k].look]; const { WORLD } = await import('./world_map.js?v=4'); view.buildWorld(WORLD, pl, {}); view.camReady = false; }
+  if (view) { const pl = {}; const { PLACES } = await import('./maps.js?v=5'); for (const [k, [x, y]] of Object.entries(PLACE_AT)) pl[k] = [x, y, PLACES[k].look]; const { WORLD } = await import('./world_map.js?v=5'); view.buildWorld(WORLD, pl, {}); view.camReady = false; }
   const tl = document.getElementById('title'); tl.classList.remove('hidden');
   audio.play('title');
   for (;;) {

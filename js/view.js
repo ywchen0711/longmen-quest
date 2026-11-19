@@ -6,8 +6,8 @@ import { RenderPass } from '../lib/addons/RenderPass.js';
 import { UnrealBloomPass } from '../lib/addons/UnrealBloomPass.js';
 import { OutputPass } from '../lib/addons/OutputPass.js';
 import { ShaderPass } from '../lib/addons/ShaderPass.js';
-import { tex, spr } from './tiles.js?v=4';
-import { TILES } from './maps.js?v=4';
+import { tex, spr } from './tiles.js?v=5';
+import { TILES } from './maps.js?v=5';
 
 const TiltShift = {
   uniforms: { tDiffuse: { value: null }, res: { value: new THREE.Vector2(1, 1) }, dir: { value: new THREE.Vector2(1, 0) }, focus: { value: 0.5 }, band: { value: 0.18 }, amount: { value: 2.2 } },

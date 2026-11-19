@@ -1,13 +1,13 @@
 // The game: where the hero is, walking on tile maps, people and their scripts, chests, doors, encounters, menus,
 // inns, shops, saving and the story's turning points. The view only draws what this holds.
-import { MAPS, PLACES, TILES, L } from './maps.js?v=4';
-import { WORLD, WORLD_W, WORLD_H, PLACE_AT } from './world_map.js?v=4';
-import { ITEMS, SKILLS, SHOPS, ENEMIES, ZONES, zoneAt, ENCOUNTER, RARE, RARE_CHANCE, MONEY_FOE, ART_OF } from './data.js?v=4';
-import { PEOPLE, CAST } from './people_art.js?v=4';
-import { ENEMY_ART, ENEMY_INFO } from './enemy_art.js?v=4';
-import * as R from './rules.js?v=4';
-import { battle } from './battle.js?v=4';
-import { t, STR, getLang, setLang, nameOf } from './ui.js?v=4';
+import { MAPS, PLACES, TILES, L } from './maps.js?v=5';
+import { WORLD, WORLD_W, WORLD_H, PLACE_AT } from './world_map.js?v=5';
+import { ITEMS, SKILLS, SHOPS, ENEMIES, ZONES, zoneAt, ENCOUNTER, RARE, RARE_CHANCE, MONEY_FOE, ART_OF } from './data.js?v=5';
+import { PEOPLE, CAST } from './people_art.js?v=5';
+import { ENEMY_ART, ENEMY_INFO } from './enemy_art.js?v=5';
+import * as R from './rules.js?v=5';
+import { battle } from './battle.js?v=5';
+import { t, STR, getLang, setLang, nameOf } from './ui.js?v=5';
 
 const DIRS = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
 const SAVE_KEYS = ['lq_slot1', 'lq_slot2', 'lq_slot3'];
