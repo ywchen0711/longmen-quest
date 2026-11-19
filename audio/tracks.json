@@ -1,0 +1,98 @@
+{
+ "title": {
+  "zh": "龍門刀客傳",
+  "en": "Ballad of the Longmen Blade",
+  "loop": true,
+  "dur": 49.655
+ },
+ "town": {
+  "zh": "客棧炊煙",
+  "en": "Cookfire Smoke over the Inn Street",
+  "loop": true,
+  "dur": 43.636
+ },
+ "field": {
+  "zh": "千里關山",
+  "en": "A Thousand Li of Mountain Passes",
+  "loop": true,
+  "dur": 73.846
+ },
+ "dungeon": {
+  "zh": "幽谷迷蹤",
+  "en": "Lost Trail in the Dark Vale",
+  "loop": true,
+  "dur": 45.714
+ },
+ "tower": {
+  "zh": "千佛塔鐘",
+  "en": "Bells of the Thousand-Buddha Tower",
+  "loop": true,
+  "dur": 46.667
+ },
+ "battle": {
+  "zh": "刀光劍影",
+  "en": "Flash of Blade and Sword",
+  "loop": true,
+  "dur": 34.286
+ },
+ "boss": {
+  "zh": "魔頭現身",
+  "en": "The Demon Chief Appears",
+  "loop": true,
+  "dur": 44.211
+ },
+ "lair": {
+  "zh": "幽冥殿",
+  "en": "Hall of the Netherworld",
+  "loop": true,
+  "dur": 46.957
+ },
+ "final": {
+  "zh": "天魔決戰",
+  "en": "Duel with the Heavenly Demon",
+  "loop": true,
+  "dur": 46.364
+ },
+ "ending": {
+  "zh": "江湖路遠",
+  "en": "Long Is the Road of the Jianghu",
+  "loop": false,
+  "dur": 99.855
+ },
+ "j_win": {
+  "zh": "旗開得勝",
+  "en": "Victory at the First Banner",
+  "loop": false,
+  "dur": 3.082
+ },
+ "j_level": {
+  "zh": "功力精進",
+  "en": "Inner Strength Grows",
+  "loop": false,
+  "dur": 2.181
+ },
+ "j_inn": {
+  "zh": "一夜好眠",
+  "en": "A Night's Good Rest",
+  "loop": false,
+  "dur": 5.117
+ },
+ "j_item": {
+  "zh": "神兵到手",
+  "en": "A Treasure in Hand",
+  "loop": false,
+  "dur": 3.339
+ },
+ "j_over": {
+  "zh": "壯志未酬",
+  "en": "Ambition Unfulfilled",
+  "loop": false,
+  "dur": 5.021
+ },
+ "j_save": {
+  "zh": "說書記事",
+  "en": "The Storyteller Writes It Down",
+  "loop": false,
+  "dur": 2.184
+ }
+}
