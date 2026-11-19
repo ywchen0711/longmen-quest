@@ -6,8 +6,8 @@ import { RenderPass } from '../lib/addons/RenderPass.js';
 import { UnrealBloomPass } from '../lib/addons/UnrealBloomPass.js';
 import { OutputPass } from '../lib/addons/OutputPass.js';
 import { ShaderPass } from '../lib/addons/ShaderPass.js';
-import { tex, spr } from './tiles.js';
-import { TILES } from './maps.js';
+import { tex, spr } from './tiles.js?v=2';
+import { TILES } from './maps.js?v=2';
 
 const TiltShift = {
   uniforms: { tDiffuse: { value: null }, res: { value: new THREE.Vector2(1, 1) }, dir: { value: new THREE.Vector2(1, 0) }, focus: { value: 0.5 }, band: { value: 0.18 }, amount: { value: 2.2 } },
@@ -379,7 +379,9 @@ export class View {
     const c = this.camera; c.fov = portrait ? 38 : 30; c.updateProjectionMatrix();
     c.position.set(this.cam.x, this.cam.y + Math.sin(el) * dist, this.cam.z + Math.cos(el) * dist); c.lookAt(this.cam.x, 0.3, this.cam.z);
     this.tilt = Math.PI / 2 - el;
-    this.sun.position.set(this.cam.x - 10, 16, this.cam.z + 3); this.sun.target.position.set(this.cam.x, 0, this.cam.z);
+    // snap the shadow camera to whole shadow-map texels so shadows don't shimmer while the camera glides
+    const snap = 32 / 2048, sx0 = Math.round(this.cam.x / snap) * snap, sz0 = Math.round(this.cam.z / snap) * snap;
+    this.sun.position.set(sx0 - 10, 16, sz0 + 3); this.sun.target.position.set(sx0, 0, sz0);
     this.lantern.position.set(focus.x, 1.4, focus.z + 0.3);
     for (const a of this.actors.values()) a.face(this.tilt);
     if (this.dyn && this.dyn.fire) this.dyn.fire.material.emissiveIntensity = 0.9 + Math.sin(this.time * 14) * 0.15;
@@ -422,8 +424,8 @@ class Actor {
     this.cw = look.cw || 16; this.ch = look.ch || 24;
     const pw = this.cw / 16, ph = this.ch / 16; const g = new THREE.PlaneGeometry(pw, ph); g.translate(0, ph / 2, 0);
     this.mat = new THREE.MeshLambertMaterial({ alphaTest: 0.5, side: THREE.DoubleSide, emissive: new THREE.Color(0x404040) });
-    this.mesh = new THREE.Mesh(g, this.mat); this.mesh.castShadow = view.quality === 'high';
-    if (this.mesh.castShadow) this.mesh.customDepthMaterial = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking, alphaTest: 0.5 });
+    // people use the soft blob below them only: a cast shadow from a flat sprite flickers as walk frames change
+    this.mesh = new THREE.Mesh(g, this.mat); this.mesh.castShadow = false;
     view.group.add(this.mesh);
     const b = new THREE.Mesh(new THREE.CircleGeometry(0.32, 12), new THREE.MeshBasicMaterial({ color: 0, transparent: true, opacity: 0.3, depthWrite: false }));
     b.rotation.x = -Math.PI / 2; this.blob = b; view.group.add(b);

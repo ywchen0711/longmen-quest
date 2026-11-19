@@ -1,13 +1,13 @@
 // The game: where the hero is, walking on tile maps, people and their scripts, chests, doors, encounters, menus,
 // inns, shops, saving and the story's turning points. The view only draws what this holds.
-import { MAPS, PLACES, TILES, L } from './maps.js';
-import { WORLD, WORLD_W, WORLD_H, PLACE_AT } from './world_map.js';
-import { ITEMS, SKILLS, SHOPS, ENEMIES, ZONES, zoneAt, ENCOUNTER } from './data.js';
-import { PEOPLE, CAST } from './people_art.js';
-import { ENEMY_ART } from './enemy_art.js';
-import * as R from './rules.js';
-import { battle } from './battle.js';
-import { t, STR, getLang, setLang, nameOf } from './ui.js';
+import { MAPS, PLACES, TILES, L } from './maps.js?v=2';
+import { WORLD, WORLD_W, WORLD_H, PLACE_AT } from './world_map.js?v=2';
+import { ITEMS, SKILLS, SHOPS, ENEMIES, ZONES, zoneAt, ENCOUNTER } from './data.js?v=2';
+import { PEOPLE, CAST } from './people_art.js?v=2';
+import { ENEMY_ART } from './enemy_art.js?v=2';
+import * as R from './rules.js?v=2';
+import { battle } from './battle.js?v=2';
+import { t, STR, getLang, setLang, nameOf } from './ui.js?v=2';
 
 const DIRS = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
 const SAVE_KEYS = ['lq_slot1', 'lq_slot2', 'lq_slot3'];
@@ -490,17 +490,20 @@ export class Game {
   }
   async settings() {
     const ui = this.ui, a = this.audio;
+    const step = (v) => { const n = Math.round(v * 10) + 2; return n > 10 ? 0 : n / 10; };  // 0, 2, 4 ... 10, then off
+    let at = 0;
     for (;;) {
       const q = this.view ? this.view.quality : 'high';
       const i = await ui.choose([
         { label: getLang() === 'zh' ? '語言：中文' : 'Language: English' },
         { label: STR.music, sub: Math.round(a.vol.music * 10) + '' }, { label: STR.sound, sub: Math.round(a.vol.sfx * 10) + '' },
         { label: STR.quality, sub: { low: STR.qlow, medium: STR.qmed, high: STR.qhigh }[q] },
-      ], { title: STR.config, ctx: 'settings', cls: 'wide' });
+      ], { title: STR.config, ctx: 'settings', cls: 'wide', start: at });
       if (i < 0) return;
+      at = i;
       if (i === 0) { setLang(getLang() === 'zh' ? 'en' : 'zh'); }
-      if (i === 1) { a.vol.music = (Math.round(a.vol.music * 10) + 2) % 12 / 10; a.applyVol(); }
-      if (i === 2) { a.vol.sfx = (Math.round(a.vol.sfx * 10) + 2) % 12 / 10; a.applyVol(); a.sfx('ok'); }
+      if (i === 1) { a.vol.music = step(a.vol.music); a.applyVol(); }
+      if (i === 2) { a.vol.sfx = step(a.vol.sfx); a.applyVol(); a.sfx('ok'); }
       if (i === 3) { const nq = { low: 'medium', medium: 'high', high: 'low' }[q]; try { localStorage.setItem('lq_quality', nq); } catch (e) {} this.autosave(); await ui.say(null, L('畫質將在重新載入後套用。', 'Graphics change applies after a reload.')); location.reload(); return; }
     }
   }

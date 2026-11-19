@@ -18,7 +18,9 @@ export class Audio {
     window.addEventListener('pageshow', () => this.resume());
     this.applyVol();
   }
-  applyVol() { this.music.volume = this.vol.music; this.jingleEl.volume = this.vol.music; if (this.out) this.out.gain.value = this.vol.sfx * 0.35; try { localStorage.setItem('lq_vol', JSON.stringify(this.vol)); } catch (e) {} }
+  applyVol() {
+    for (const k of ['music', 'sfx']) { const v = +this.vol[k]; this.vol[k] = isFinite(v) ? Math.min(1, Math.max(0, v)) : 0.7; }
+    this.music.volume = this.vol.music; this.jingleEl.volume = this.vol.music; if (this.out) this.out.gain.value = this.vol.sfx * 0.35; try { localStorage.setItem('lq_vol', JSON.stringify(this.vol)); } catch (e) {} }
   unlock() {
     if (this.ctx && this.ctx.state !== 'running') this.ctx.resume().catch(() => {});
     if (this.unlocked) return; this.unlocked = true;
