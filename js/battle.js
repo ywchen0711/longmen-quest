@@ -4,18 +4,22 @@
 // qi orbs, claws, jaws...), from pools that are filled once per battle so the 60 fps loop allocates nothing.
 // The stage is a pop-up spread: layered cut-out paper scenery, the foe a die-cut card that rises on its hinge from
 // the bottom of the page (with its shadow on the floor), and the damage numbers little paper tags.
-import { ENEMIES, SKILLS, ITEMS, ART_OF } from './data.js?v=11';
-import { ENEMY_ART } from './enemy_art.js?v=11';
-import { CAST } from './people_art.js?v=11';
-import * as R from './rules.js?v=11';
-import { t, STR } from './ui.js?v=11';
-import { hex, NES } from './tiles.js?v=11';
-import { dieCut, grainCanvas } from './paper.js?v=11';
+// 奕叡 stands on the stage too: his back-view field sprite as a die-cut card in the lower-left foreground. Every
+// exchange shows who strikes and who is struck: the attacker winds up and lunges, the blow lands on the target's card
+// (which is boxed by blinking corner marks, flashes, recoils on its hinge and sheds paper scraps), and the number
+// pops up on a tag over the card that was hit - a cream tag for the foe, a red one for the hero.
+import { ENEMIES, SKILLS, ITEMS, ART_OF } from './data.js?v=12';
+import { ENEMY_ART } from './enemy_art.js?v=12';
+import { CAST, PEOPLE, PEOPLE_IMAGE } from './people_art.js?v=12';
+import * as R from './rules.js?v=12';
+import { t, STR } from './ui.js?v=12';
+import { hex, NES } from './tiles.js?v=12';
+import { dieCut, grainCanvas } from './paper.js?v=12';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const imgs = {};
 function img(src) { if (!imgs[src]) { imgs[src] = new Image(); imgs[src].src = src; } return imgs[src]; }
-export function preloadBattleArt() { img('assets/enemies.png?v=11'); for (const c of Object.values(CAST)) img(c.portrait); }
+export function preloadBattleArt() { img('assets/enemies.png?v=12'); img(PEOPLE_IMAGE); for (const c of Object.values(CAST)) img(c.portrait); }
 
 const SCENES = {   // backdrop strip colours (NES indexes): sky, far, near
   grass: [0x21, 0x1A, 0x0A], forest: [0x0A, 0x0B, 0x1A], hill: [0x21, 0x19, 0x09], sand: [0x31, 0x27, 0x17], swamp: [0x0C, 0x0B, 0x04],
@@ -32,6 +36,9 @@ const QI = [0x21, 0x31, 0x30], QI2 = [0x11, 0x21, 0x31, 0x30], FIRE = [0x16, 0x2
 const SPARK = [0x30, 0x38, 0x31, 0x28], CRITSPARK = [0x30, 0x28, 0x27, 0x16, 0x38], BOOM = [0x30, 0x38, 0x28, 0x27, 0x16, 0x06];
 const GREEN = [0x2A, 0x39, 0x30, 0x1A], BLUE = [0x21, 0x31, 0x30, 0x11], GOLD = [0x28, 0x38, 0x30, 0x27], PURPLE = [0x24, 0x34, 0x14, 0x30];
 const GREYS = [0x10, 0x00, 0x2D], RED = [0x16, 0x06, 0x30], DUST = [0x17, 0x27, 0x10, 0x00];
+const SCRAPS = [0x30, 0x37, 0x3D, 0x30], HURT = [0x16, 0x30, 0x06, 0x27];   // paper bits torn off a struck card; the hero's hurt sparks
+const WSL = [0x2D, 0x16, 0x30], WHIFF = [0x2D, 0x00, 0x3D];                   // a foe's weapon cut, and one that misses
+const BLADE_TRAIL = [0x30, 0x31, 0x21, 0x11];
 
 // ---------------------------------------------------------------- crisp text sprites (Cubic 11 at its native 12px)
 const TXT = new Map(); let mctx = null;
@@ -67,7 +74,7 @@ function ink(s, col) {
   try { const id = g.getImageData(0, 0, W, H), d = id.data; for (let i = 3; i < d.length; i += 4) d[i] = d[i] >= 110 ? 255 : 0; g.putImageData(id, 0, 0); } catch (e) {}
   INK.set(key, cv); return cv;
 }
-const INKOF = { 0x30: '#2b2118', 0x28: '#b5361f', 0x27: '#c8401c', 0x2A: '#2f7a2a', 0x10: '#6e604c', 0x00: '#6e604c' };
+const INKOF = { 0x30: '#2b2118', 0x28: '#b5361f', 0x27: '#c8401c', 0x2A: '#2f7a2a', 0x10: '#6e604c', 0x00: '#6e604c', 0x21: '#1f5aa8', 0x24: '#6a3a9a' };
 // the backdrop: cut-out paper layers (sky, far hills, near hills) over the floor of the page, drawn once a battle
 const mixc = (a, b, f) => { const A = NES[a], r = (A >> 16 & 255) * (1 - f) + (b >> 16 & 255) * f, g = (A >> 8 & 255) * (1 - f) + (b >> 8 & 255) * f, bl = (A & 255) * (1 - f) + (b & 255) * f; return `rgb(${r | 0},${g | 0},${bl | 0})`; };
 let GRAIN = null;
@@ -109,7 +116,7 @@ export async function battle(G, foeId, opts = {}) {
   const root = document.getElementById('battle'); root.innerHTML = ''; root.classList.remove('hidden');
   const el = (tag, cls, p = root) => { const e = document.createElement(tag); e.className = cls; p.appendChild(e); return e; };
   const stage = el('div', 'win bstage'); const cv = el('canvas', 'bcanvas', stage); cv.width = 480; cv.height = 360; const cx = cv.getContext('2d'); cx.setTransform(3, 0, 0, 3, 0, 0); cx.imageSmoothingEnabled = false;   // drawn at 160x120, stored at 3x so pictures can use whole device pixels
-  const stat = el('div', 'win bstat'); const sbody = el('div', 'sbody', stat); const snum = el('div', 'snum', stat); for (let i = 0; i < 6; i++) el('i', 'spk', stat);
+  const stat = el('div', 'win bstat'); const sbody = el('div', 'sbody', stat); for (let i = 0; i < 6; i++) el('i', 'spk', stat);
   const log = el('div', 'win blog'); const lines = [];
   const drawStat = () => {
     const s = R.stat(h);
@@ -124,12 +131,12 @@ export async function battle(G, foeId, opts = {}) {
   const scene = SCENES[opts.scene] || SCENES.grass;
   let art = null, src = null;
   if (E.por) { src = img(CAST[E.por].portrait); art = { x: 0, y: 0, w: 48, h: 56, por: 1 }; }
-  else { src = img('assets/enemies.png?v=11'); art = ENEMY_ART[ART_OF(foeId)]; }
+  else { src = img('assets/enemies.png?v=12'); art = ENEMY_ART[ART_OF(foeId)]; }
   // whole device pixels per art pixel (k/3 on the 160x120 stage); bigger pictures step down so they always fit
   // a third larger than 1:1 on the 160x120 stage, so the foe fills about two thirds of the black area
   const k = art.por ? 4 : Math.max(3, Math.min(4, Math.floor(276 / art.h), Math.floor(468 / art.w)));
   const W0 = art.w * k / 3, H0 = art.h * k / 3;
-  const FCY = Math.max(28, 73 - H0 / 2) + H0 / 2, FCX = 80, FTOP = FCY - H0 / 2;   // the foe's centre and top on the stage
+  const FCY = Math.max(28, 73 - H0 / 2) + H0 / 2, FCX = 96, FTOP = FCY - H0 / 2, FBOT = FCY + H0 / 2;   // the foe's centre, top and foot on the stage (right of centre: the hero stands at the lower left)
   const sx0 = art.por ? 0 : art.x, sy0 = art.por ? 0 : art.y;
   // the foe as a die-cut card (its art on a white border), a white silhouette of it (hit flash) and its shadow
   const BP = 3, CW = art.w + BP * 2, CH = art.h + BP * 2;
@@ -143,6 +150,20 @@ export async function battle(G, foeId, opts = {}) {
       sil = mk('#fcfcfc'); shad = mk('rgba(30,18,6,0.42)');
     } catch (e) { card = null; sil = null; shad = null; }
   }
+  // ---------------------------------------------------------------- the hero's card
+  // 奕叡's back-view walk frames (the field sprite he walks north with) cut out on a white border; tinted copies for
+  // the hit flash (red), heals (green), the guard (gold), a knock-out (grey) and the shadow
+  const HSRC = img(PEOPLE_IMAGE), HBP = 2, HCW = 16 + HBP * 2, HCH = 24 + HBP * 2, HS = 2;   // stage pixels per art pixel
+  const HOMEX = 30, HFOOT = 117, HW = HCW * HS, HH = HCH * HS, HCY = HFOOT - HH / 2 + 2, HTOP = HFOOT - HH + HBP * HS;   // the hero card's home: foot centre, centre, top of the art
+  const hcards = [], htint = {}; let hTried = false;
+  function makeHero() {
+    hTried = true;
+    try {
+      for (const f of PEOPLE.hero_back) { const a = document.createElement('canvas'); a.width = 16; a.height = 24; a.getContext('2d').drawImage(HSRC, f.x, f.y, f.w, f.h, 0, 24 - f.h, f.w, f.h); hcards.push(dieCut(a, 1, HBP, 2, '#fffaf0', '#a89a80')); }
+      const mk = (f) => { const c = document.createElement('canvas'); c.width = HCW; c.height = HCH; const g = c.getContext('2d'); g.drawImage(hcards[0], 0, 0); g.globalCompositeOperation = 'source-in'; g.fillStyle = f; g.fillRect(0, 0, HCW, HCH); return c; };
+      htint.red = mk(COLS[0x16]); htint.white = mk('#fcfcfc'); htint.green = mk(COLS[0x2A]); htint.gold = mk(COLS[0x28]); htint.blue = mk(COLS[0x21]); htint.purple = mk(COLS[0x24]); htint.grey = mk('rgba(40,30,20,0.55)'); htint.shad = mk('rgba(30,18,6,0.42)');
+    } catch (e) { hcards.length = 0; }
+  }
   const bg = scenery(SCENES[opts.scene] || SCENES.grass);
   const NSTRIP = Math.ceil(CW / 2), thr = new Float32Array(NSTRIP);
   const riseAt = 0.32; let riseT0 = -1;   // the card rises on its hinge with a little overshoot
@@ -151,7 +172,19 @@ export async function battle(G, foeId, opts = {}) {
   // ---------------------------------------------------------------- effect pools (filled once)
   // fx: foe picture state. white = hit-stop silhouette, blink = white/normal flicker, kx/ky = knock-back,
   // lunge = the foe's forward step, diss = dissolve 0..1, scr = full-stage flash
-  const fx = { alpha: 1, shake: 0, white: 0, blink: 0, kx: 0, ky: 0, lunge: 0, diss: 0, dissRate: 0, scr: 0, scrC: 0x30, flee: 0, dodge: 0, ddir: 1 };
+  // tb / roll = the card rocking back on its hinge and rolling sideways after a blow (damped springs, kicked by tbv / rv)
+  const fx = { alpha: 1, shake: 0, white: 0, blink: 0, kx: 0, ky: 0, lunge: 0, diss: 0, dissRate: 0, scr: 0, scrC: 0x30, flee: 0, dodge: 0, ddir: 1, tb: 0, tbv: 0, roll: 0, rv: 0 };
+  // the hero's card: act = the pose being played ('' = standing), t = its clock (held during a hit-stop),
+  // tint = a coloured flash over the card for tintT seconds
+  const hero = { act: '', t: 0, tint: '', tintT: 0 };
+  const HP = { x: HOMEX, y: HFOOT, sc: 1, sy: 1, rot: 0, bl: false, ba: 0, bd: 1, fr: 0, gh: 0 };   // the pose, worked out each frame (reused)
+  const DXT = Math.max(24, FCX - W0 / 2 - 2 - HOMEX), DYT = Math.min(0, FBOT + 4 - HFOOT);   // where his lunge ends: just in front of the foe
+  const LUNGE = Math.round((FCX - HOMEX) * 0.22);                                              // how far the foe's lunge comes at him
+  const hl = { who: 0, t: 0 };   // the target's blinking corner marks: 1 = the foe, 2 = the hero
+  let stop = 0;                  // hit-stop: both cards hold still for a moment when a blow lands
+  const heroAct = (a) => { hero.act = a; hero.t = 0; };
+  const tintHero = (c, d) => { hero.tint = c; hero.tintT = d; };
+  const mark = (who, d = 0.8) => { if (!fast) { hl.who = who; hl.t = d; } };
   const NP = 300, P = []; for (let i = 0; i < NP; i++) P.push({ on: false, x: 0, y: 0, vx: 0, vy: 0, g: 0, dr: 0, life: 0, c: 0, s: 1, k: 0 });
   let pi = 0;
   function part(x, y, vx, vy, life, c, s = 1, g = 0, dr = 0, kind = 0) {
@@ -171,12 +204,16 @@ export async function battle(G, foeId, opts = {}) {
     if (type === 'bolt') { let x = e.x1 + (Math.random() - 0.5) * 30; for (let i = 0; i < 12; i++) { const f = i / 11; e.pts[i * 2] = i === 11 ? e.x1 : x; e.pts[i * 2 + 1] = f * e.y1; x += (Math.random() - 0.5) * 22; x += (e.x1 - x) * 0.25; } }
     return e;
   }
-  const NT = 6, TX = []; for (let i = 0; i < NT; i++) TX.push({ on: false, a: null, b: null, x: 0, y: 0, t: 0, sc: 1, crit: false });
-  function pop(s, c, x = FCX, y = FCY - 6, sc = 4 / 3, c2 = -1) {   // a damage number over the foe
+  const NT = 6, TX = []; for (let i = 0; i < NT; i++) TX.push({ on: false, a: null, b: null, x: 0, y: 0, t: 0, sc: 1, crit: false, red: false });
+  // a number on a paper tag over the card that was hit: cream with ink over the foe, red with cream ink when the
+  // hero is hurt (red = we were hit)
+  function pop(s, c, x = FCX, y = FCY - 6, sc = 4 / 3, c2 = -1, red = false) {
     if (fast) return;
     let o = TX[0]; for (const q of TX) { if (!q.on) { o = q; break; } if (q.t > o.t) o = q; }
-    o.on = true; o.a = ink(String(s), INKOF[c] || '#2b2118'); o.b = c2 >= 0 ? ink(String(s), INKOF[c2] || '#b5361f') : o.a; o.x = x; o.y = y; o.t = 0; o.sc = sc * 0.85; o.crit = c === 0x28;
+    o.on = true; o.red = red; o.a = ink(String(s), red ? '#fff4dc' : INKOF[c] || '#2b2118'); o.b = c2 >= 0 ? ink(String(s), INKOF[c2] || '#b5361f') : o.a; o.x = x; o.y = y; o.t = 0; o.sc = sc * 0.85; o.crit = c === 0x28;
   }
+  const heroPop = (s, c = 0x10, sc = 4 / 3) => pop(s, c, HOMEX, HTOP + 2, sc);                 // a tag over the hero (heals, MISS, 0)
+  const heroHurtTag = (d, big) => pop(d, 0x30, HOMEX, HTOP + 2, big ? 5 / 3 : 4 / 3, -1, true);   // a red damage tag over the hero
 
   // ---------------------------------------------------------------- pixel drawing helpers (whole stage pixels)
   const fill = (c) => { cx.fillStyle = COLS[c]; };
@@ -194,11 +231,12 @@ export async function battle(G, foeId, opts = {}) {
   // ---------------------------------------------------------------- the frame
   let alive = true, raf = 0, last = performance.now(), T = 0;
   function drawFoe() {
-    let kk = k, dy = 0;
-    if (fx.lunge > 0) { const u = fx.lunge; if (u > 0.30) dy = -2; else if (u > 0.08) { kk = k + 1; dy = 5; } else dy = 1; }
+    // the foe's blow: it rears back on its hinge (away from the hero), then lunges down-left at him, leaning in
+    const kk = k; let dy = 0, lx = 0, lr = 0;
+    if (fx.lunge > 0) { const u = fx.lunge; if (u > 0.30) { dy = -2; lx = 4; lr = 0.07; } else if (u > 0.08) { dy = 4; lx = -LUNGE; lr = -0.1; } else { dy = 1; lx = -5; lr = -0.03; } }
     const w = art.w * kk / 3, hh = art.h * kk / 3, sp = kk / 3;
     const dg = fx.dodge > 0 ? fx.ddir * 18 * (fx.dodge > 0.34 ? (0.42 - fx.dodge) / 0.08 : fx.dodge > 0.14 ? 1 : fx.dodge / 0.14) : 0;   // a sidestep: out fast, hold, back
-    const x0 = R3(FCX - w / 2 + fx.kx + Math.round(dg) + (fx.shake > 0 ? Math.random() * 4 - 2 : 0)) - BP * sp, y0 = R3(FCY - hh / 2 + dy + fx.ky) - BP * sp;
+    const x0 = R3(FCX - w / 2 + fx.kx + lx + Math.round(dg) + (fx.shake > 0 ? Math.random() * 4 - 2 : 0)) - BP * sp, y0 = R3(FCY - hh / 2 + dy + fx.ky) - BP * sp;
     const white = fx.white > 0 || (fx.blink > 0 && blinkOn(fx.blink, 15));
     if (!card) return;
     const S = white ? sil : card, cwid = CW * sp, chgt = CH * sp;
@@ -209,7 +247,9 @@ export async function battle(G, foeId, opts = {}) {
     if (fx.diss <= 0 && shad) {   // the shadow falls back and to the right on the floor
       cx.save(); cx.translate(baseX, baseY); cx.transform(1, 0, -0.5 * rs, 0.32 * rs, 0, 0); cx.drawImage(shad, x0 - baseX, y0 - baseY, cwid, chgt); cx.restore();
     }
-    cx.save(); cx.translate(0, baseY); cx.scale(1, rs); cx.translate(0, -baseY);
+    // a blow rocks the card back on its hinge (it shortens) and rolls it sideways; the lunge leans it at the hero
+    const tb = Math.max(-0.25, Math.min(0.6, fx.tb)), roll = lr + fx.roll;
+    cx.save(); cx.translate(baseX, baseY); if (roll) cx.rotate(roll); cx.scale(1, rs * (1 - 0.45 * tb)); cx.translate(-baseX, -baseY);
     if (fx.diss <= 0) cx.drawImage(S, 0, 0, CW, CH, x0, y0, cwid, chgt);
     else {
       // the card burns away: two-pixel strips from the top at their own pace, with a glowing edge
@@ -222,6 +262,116 @@ export async function battle(G, foeId, opts = {}) {
     }
     cx.restore();
     cx.globalAlpha = 1;
+  }
+  // ---------------------------------------------------------------- the hero's poses (seconds on hero.t)
+  // atk / crit / miss / jab: wind up (leans back and sinks), dash at the foe (smaller as he goes into the page, running
+  // frames, afterimages), the saber sweep (a drawn blade with a smear behind its tip; a crit cuts there and back),
+  // a hold, then a hop back home. cast: rises and leans back, hands up. hurt / hurt2: knocked back, rocking on his
+  // tab. dodge: a quick sidestep. block: braced, saber level. hop: a little jump. ko: falls flat on his back.
+  function pose() {
+    const t = hero.t, a = hero.act;
+    let x = 0, y = 0, sc = 1, sy = 1, rot = 0, bl = false, ba = 0, bd = 1, fr = 0, gh = 0;
+    if (a === 'atk' || a === 'crit' || a === 'miss' || a === 'jab') {
+      const c = a === 'crit', W1 = c ? 0.16 : 0.10, D1 = W1 + (c ? 0.08 : 0.10), S1 = D1 + (c ? 0.16 : 0.12), H1 = S1 + (a === 'miss' ? 0.16 : 0.10), B1 = H1 + 0.2;
+      if (t < W1) { const q = t / W1; rot = -0.2 * q; y = q; sy = 1 - 0.06 * q; if (c) { bl = true; ba = -2.5; } }
+      else if (t < D1) { const q = (t - W1) / (D1 - W1), e = q * q; x = DXT * e; y = DYT * e - Math.sin(PI * q) * 3; sc = 1 - 0.14 * e; rot = -0.2 + 0.35 * q; fr = (q * 4 | 0) & 1; gh = q; if (c) { bl = true; ba = -2.5; } }
+      else if (t < H1) {
+        const q = Math.min(1, (t - D1) / (S1 - D1));
+        x = DXT; y = DYT; sc = 0.86; bl = a !== 'jab';
+        if (c) { if (q < 0.5) ba = -2.5 + 3.4 * easeOut(q * 2); else { ba = 0.9 - 2.6 * easeOut((q - 0.5) * 2); bd = -1; } rot = 0.15 + 0.12 * Math.sin(TAU * q); }
+        else { ba = -2.0 + 2.9 * easeOut(Math.min(1, q * 1.5)); rot = 0.15 + 0.12 * Math.sin(PI * Math.min(1, q * 1.5)); }
+        if (a === 'miss') { x += 7 * easeOut(q); rot += 0.2 * q; }
+        if (a === 'jab') { x += 5 * Math.sin(PI * Math.min(1, q * 2)); rot = 0.18; }
+      } else if (t < B1) { const q = (t - H1) / (B1 - H1), e = easeOut(q), ex = DXT + (a === 'miss' ? 7 : 0); x = ex * (1 - e); y = DYT * (1 - e) - Math.sin(PI * q) * 5; sc = 0.86 + 0.14 * e; rot = 0.2 * (1 - e); fr = (q * 4 | 0) & 1; }
+      else hero.act = '';
+    } else if (a === 'cast') {
+      if (t < 0.12) { const q = t / 0.12; y = -4 * q; rot = -0.1 * q; }
+      else if (t < 0.5) { y = -4 + ((t * 10 | 0) & 1) * 0.6; rot = -0.1; }
+      else if (t < 0.66) { const q = (t - 0.5) / 0.16; y = -4 * (1 - q); rot = -0.1 * (1 - q); }
+      else hero.act = '';
+    } else if (a === 'hurt' || a === 'hurt2') {
+      const big = a === 'hurt2', D = big ? 0.5 : 0.38;
+      if (t < D) { const f = 1 - t / D, w = f * f; x = (big ? -11 : -7) * w; y = 2 * w; rot = (big ? -0.42 : -0.24) * w * Math.cos(t * 26); if (t < 0.25) x += ((T * 60 | 0) & 1) ? 1 : -1; }
+      else hero.act = '';
+    } else if (a === 'dodge') {
+      if (t < 0.46) { const s = t < 0.08 ? t / 0.08 : t < 0.3 ? 1 : 1 - (t - 0.3) / 0.16; x = -12 * s; y = -3 * Math.sin(PI * Math.min(1, t / 0.16)); rot = -0.16 * s; fr = (t * 12 | 0) & 1; }
+      else hero.act = '';
+    } else if (a === 'block') {
+      if (t < 0.4) { const f = 1 - t / 0.4; x = -3 * f; rot = 0.08 * f; bl = t < 0.34; ba = -0.35; } else hero.act = '';
+    } else if (a === 'hop') {
+      if (t < 0.32) y = -5 * Math.sin(PI * t / 0.32); else hero.act = '';
+    } else if (a === 'ko') {
+      const q = Math.min(1, t / 0.4); sy = 1 - 0.86 * q * q; if (t > 0.4 && t < 0.56) sy += Math.sin(PI * (t - 0.4) / 0.16) * 0.1; rot = -0.12 * q; x = -2 * q;
+    }
+    HP.x = HOMEX + x; HP.y = HFOOT + y; HP.sc = sc; HP.sy = sy; HP.rot = rot; HP.bl = bl; HP.ba = ba; HP.bd = bd; HP.fr = fr; HP.gh = gh;
+  }
+  let lastBa = 0;
+  function blade() {   // the ring-pommel saber in his right hand (drawn in the card's own frame, so it leans and shrinks with him)
+    const hx = -HW / 2 + (HBP + 13) * HS, hy = -HH + HBP * HS + (HBP + 12) * HS, a = HP.ba, L = 20, ca = Math.cos(a), sa = Math.sin(a);
+    if (Math.abs(a - lastBa) > 0.02) for (let j = 4; j >= 1; j--) {   // a smear behind the tip while it sweeps
+      const b = a - HP.bd * j * 0.17; fill(BLADE_TRAIL[j - 1]); line(hx + Math.cos(b) * (L - 7 + j), hy + Math.sin(b) * (L - 7 + j), hx + Math.cos(b) * L, hy + Math.sin(b) * L, j < 3 ? 2 : 1);
+    }
+    lastBa = a;
+    fill(0x0F); line(hx, hy, hx + ca * L, hy + sa * L, 3);
+    fill(0x10); line(hx + ca, hy + sa, hx + ca * (L - 1), hy + sa * (L - 1), 2);
+    fill(0x30); line(hx + ca * 3, hy + sa * 3, hx + ca * (L - 1), hy + sa * (L - 1), 1);
+    fill(0x28); px(hx + ca * 2, hy + sa * 2, 3); fill(0x27); circ(hx - ca * 3, hy - sa * 3, 1.5);
+    if (hero.act === 'crit' && hero.t < 0.24 && blinkOn(T, 20)) star(hx + ca * L, hy + sa * L, 4, 0x30, 0x38);   // the blade glints before a crit
+  }
+  function drawHero() {
+    if (!hTried && HSRC.complete && HSRC.naturalWidth) makeHero();
+    if (!hcards.length) return;
+    pose();
+    if (riseT0 < 0) riseT0 = T;
+    const rs = fast ? 1 : riseOf((T - riseT0 - riseAt - 0.14) / 0.42);   // he rises on his tab just after the foe
+    const px0 = HP.x, py0 = HP.y, sc = HP.sc, ys = rs * HP.sy, top = -HH + HBP * HS;
+    // his shadow on the floor, then the afterimages of a dash, then the card
+    cx.save(); cx.translate(px0, py0); cx.transform(sc, 0, -0.5 * ys * sc, 0.3 * ys * sc, 0, 0); cx.drawImage(htint.shad, -HW / 2, top, HW, HH); cx.restore();
+    if (HP.gh > 0) for (let j = 1; j <= 2; j++) {
+      const f = 1 - j * 0.28; cx.globalAlpha = 0.3 / j;
+      cx.save(); cx.translate(HOMEX + (px0 - HOMEX) * f, HFOOT + (py0 - HFOOT) * f); cx.scale(sc, sc * ys); cx.drawImage(htint.blue, -HW / 2, top, HW, HH); cx.restore();
+    }
+    cx.globalAlpha = 1;
+    cx.save(); cx.translate(R3(px0), R3(py0)); if (HP.rot) cx.rotate(HP.rot); cx.scale(sc, sc * ys);
+    const flash = stop > 0 && (hero.act === 'hurt' || hero.act === 'hurt2');   // white for the hit-stop, then red blinks
+    cx.drawImage(flash ? htint.white : hcards[HP.fr], -HW / 2, top, HW, HH);
+    if (hero.act === 'ko') { cx.globalAlpha = Math.min(1, hero.t * 3); cx.drawImage(htint.grey, -HW / 2, top, HW, HH); }
+    else if (hero.tintT > 0 && !flash && blinkOn(hero.tintT, 12)) { cx.globalAlpha = hero.tint === 'red' ? 0.72 : 0.42; cx.drawImage(htint[hero.tint] || htint.white, -HW / 2, top, HW, HH); }
+    cx.globalAlpha = 1;
+    if (HP.bl) blade(); else lastBa = HP.ba;
+    cx.restore();
+  }
+  function heroMarks() {   // lasting states over the hero
+    if (!hcards.length || hero.act === 'ko') return;
+    if (me.sleep) for (let i = 0; i < 3; i++) {
+      const ph = (T * 0.9 + i / 3) % 1, s = txt(i === 1 ? 'Z' : 'z', 0x30);
+      cx.drawImage(s, R3(HOMEX + 6 + ph * 8 + i * 2), R3(HTOP - 2 - ph * 14), s.width, s.height);
+    }
+    if (me.sealed) {
+      const x = Math.round(HOMEX + HW / 2 - 2), y = Math.round(HTOP + 8 + (Math.floor(T * 2) & 1));
+      fill(0x16); cx.fillRect(x - 1, y - 1, 15, 19); fill(0x38); cx.fillRect(x, y, 13, 17); const s = txt('封', 0x16); cx.drawImage(s, x - 1, y + 1);
+    }
+    if (me.guard > 1) {
+      const n = Math.floor(T / 0.6), ph = T % 0.6;
+      if (ph < 0.18) { const a = (n * 2.39996) % TAU; star(HOMEX + Math.cos(a) * HW * 0.45, HCY + Math.sin(a) * HH * 0.42, ph < 0.09 ? 3 : 2, 0x30, 0x28); }
+    }
+  }
+  // the target of the blow under way: blinking corner marks round its card (yellow round the foe, red round the hero)
+  function corners() {
+    if (hl.t <= 0 || !blinkOn(hl.t, 8)) return;
+    let x0, y0, x1, y1, c;
+    if (hl.who === 1) { if (fx.alpha <= 0 || fx.diss > 0) return; x0 = FCX - W0 / 2 - 3; x1 = FCX + W0 / 2 + 3; y0 = FTOP - 3; y1 = FBOT + 3; c = 0x38; }
+    else if (hl.who === 2) { x0 = HOMEX - HW / 2 - 1; x1 = HOMEX + HW / 2 + 1; y0 = HFOOT - HH + 1; y1 = 119; c = 0x16; }
+    else return;
+    x0 = Math.round(Math.max(1, x0)); y0 = Math.round(Math.max(1, y0)); x1 = Math.round(Math.min(159, x1)); y1 = Math.round(Math.min(119, y1));
+    const L = 6, th = 2;
+    for (let pass = 0; pass < 2; pass++) {
+      fill(pass ? c : 0x0F); const o = pass ? 0 : 1, l = L + 2 * o, w = th + 2 * o;
+      cx.fillRect(x0 - o, y0 - o, l, w); cx.fillRect(x0 - o, y0 - o, w, l);
+      cx.fillRect(x1 - L - o, y0 - o, l, w); cx.fillRect(x1 - th - o, y0 - o, w, l);
+      cx.fillRect(x0 - o, y1 - th - o, l, w); cx.fillRect(x0 - o, y1 - L - o, w, l);
+      cx.fillRect(x1 - L - o, y1 - th - o, l, w); cx.fillRect(x1 - th - o, y1 - L - o, w, l);
+    }
   }
   function marks() {   // lasting states over the foe
     if (fx.alpha <= 0 || fx.diss > 0) return;
@@ -295,31 +445,32 @@ export async function battle(G, foeId, opts = {}) {
         }
         break;
       }
-      case 'claw': {   // three scratches tear across, toward the viewer
+      case 'claw': {   // three scratches tear across the target (s = size)
         if (u > 0.75 && !blinkOn(T)) break;
+        const s = e.s, w0 = s < 1 ? 4 : 5, w1 = s < 1 ? 2 : 3;
         for (let i = 0; i < 3; i++) {
           const f = Math.min(1, Math.max(0, (u - i * 0.1) / 0.18)); if (f <= 0) continue;
-          const xa = e.x + i * 14 + 22, ya = e.y, xb = e.x + i * 14 - 10, yb = e.y + 62, xe = xa + (xb - xa) * f, ye = ya + (yb - ya) * f;
-          fill(0x06); line(xa, ya, xe, ye, 5); fill(0x16); line(xa + (xb - xa) * 0.08, ya + (yb - ya) * 0.08, xe, ye, 3); fill(0x30); line(xa + (xb - xa) * 0.2, ya + (yb - ya) * 0.2, xa + (xe - xa) * 0.85, ya + (ye - ya) * 0.85, 1);
+          const xa = e.x + (i * 14 + 22) * s, ya = e.y + i * 2 * s, xb = e.x + (i * 14 - 10) * s, yb = e.y + 62 * s, xe = xa + (xb - xa) * f, ye = ya + (yb - ya) * f;
+          fill(0x06); line(xa, ya, xe, ye, w0); fill(0x16); line(xa + (xb - xa) * 0.08, ya + (yb - ya) * 0.08, xe, ye, w1); fill(0x30); line(xa + (xb - xa) * 0.2, ya + (yb - ya) * 0.2, xa + (xe - xa) * 0.85, ya + (ye - ya) * 0.85, 1);
         }
         break;
       }
-      case 'bite': {   // a jaw snaps shut on the viewer
-        const mid = e.y, q = u < 0.42 ? (u / 0.42) * (u / 0.42) : u < 0.62 ? 1 : 1 - (u - 0.62) / 0.38 * 0.35;
+      case 'bite': {   // a jaw snaps shut on the target (x, y = its centre, r = half the jaw's width)
+        const mid = Math.round(e.y), q = u < 0.42 ? (u / 0.42) * (u / 0.42) : u < 0.62 ? 1 : 1 - (u - 0.62) / 0.38 * 0.35;
         if (u > 0.7 && !blinkOn(T)) break;
-        const top = -16 + (mid - 3 + 16) * q, bot = 136 - (136 - mid - 3) * q;
-        fill(0x06); cx.fillRect(24, Math.round(top) - 10, 112, 10); cx.fillRect(24, Math.round(bot), 112, 10); fill(0x16); cx.fillRect(24, Math.round(top) - 2, 112, 2); cx.fillRect(24, Math.round(bot), 112, 2);
-        for (let xx = 28; xx < 132; xx += 10) for (let r = 0; r < 7; r++) {
-          fill(r < 2 ? 0x10 : 0x30); cx.fillRect(xx + Math.floor(r / 2), Math.round(top) + r, 8 - r, 1); cx.fillRect(xx + 5 + Math.floor(r / 2), Math.round(bot) - 1 - r, 8 - r, 1);
+        const x0 = Math.round(e.x - e.r), W = Math.round(e.r * 2), top = Math.round(mid - 30 + 27 * q), bot = Math.round(mid + 30 - 27 * q);
+        fill(0x06); cx.fillRect(x0, top - 7, W, 7); cx.fillRect(x0, bot, W, 7); fill(0x16); cx.fillRect(x0, top - 2, W, 2); cx.fillRect(x0, bot, W, 2);
+        for (let xx = x0 + 1; xx < x0 + W - 5; xx += 7) for (let r = 0; r < 5; r++) {
+          fill(r < 1 ? 0x10 : 0x30); cx.fillRect(xx + (r >> 1), top + r, 6 - r, 1); cx.fillRect(xx + 3 + (r >> 1), bot - 1 - r, 6 - r, 1);
         }
         break;
       }
-      case 'wslash': {   // a weapon cut at the viewer: grey edge, red body, white core
+      case 'wslash': {   // a weapon cut across the target: grey edge, red body, white core (p = the three colours)
         const f = Math.min(1, u / 0.35), tl = Math.min(1, Math.max(0, (u - 0.3) / 0.6));
         const xa = e.x + (e.x1 - e.x) * tl, ya = e.y + (e.y1 - e.y) * tl, xb = e.x + (e.x1 - e.x) * f, yb = e.y + (e.y1 - e.y) * f;
         const n = Math.max(1, Math.ceil(Math.hypot(xb - xa, yb - ya))), nx = -(e.y1 - e.y), ny = e.x1 - e.x, nl = Math.hypot(nx, ny) || 1;
         for (let pass = 0; pass < 3; pass++) {
-          fill(pass === 0 ? 0x2D : pass === 1 ? 0x16 : 0x30);
+          fill(p[pass]);
           for (let i = 0; i <= n; i++) {
             const f = i / n, g = tl + (Math.min(1, u / 0.35) - tl) * f, bow = Math.sin(PI * g) * 7, w = Math.max(1, Math.round((pass === 0 ? 7 : pass === 1 ? 4 : 1) * Math.sin(PI * Math.min(1, 0.1 + g * 0.85))));
             px(e.x + (e.x1 - e.x) * g + nx / nl * bow, e.y + (e.y1 - e.y) * g + ny / nl * bow, w);
@@ -358,8 +509,8 @@ export async function battle(G, foeId, opts = {}) {
         for (let pass = 0; pass < 3; pass++) { fill(pass === 2 ? 0x30 : pass ? p[0] : 0x27); for (let i = 0; i < n; i++) line(e.pts[i * 2], e.pts[i * 2 + 1], e.pts[i * 2 + 2], e.pts[i * 2 + 3], pass === 2 ? 1 : pass ? 3 : 5); }
         break;
       }
-      case 'breath': {   // fire breath: a widening cone of flame toward the viewer
-        e.acc += dt * 420; while (e.acc > 1) { e.acc--; const a = PI / 2 + (Math.random() - 0.5) * 1.3, v = 150 + Math.random() * 110; part(e.x + (Math.random() - 0.5) * 4, e.y, Math.cos(a) * v, Math.sin(a) * v, 0.4 + Math.random() * 0.25, p[Math.random() * 3 | 0], 3 + (Math.random() < 0.4 ? 1 : 0), -80, 0.6); }
+      case 'breath': {   // fire breath: a widening cone of flame from the mouth toward the target (a0 = its direction)
+        e.acc += dt * 420; while (e.acc > 1) { e.acc--; const a = e.a0 + (Math.random() - 0.5) * 0.9, v = 150 + Math.random() * 110; part(e.x + (Math.random() - 0.5) * 4, e.y, Math.cos(a) * v, Math.sin(a) * v, 0.4 + Math.random() * 0.25, p[Math.random() * 3 | 0], 3 + (Math.random() < 0.4 ? 1 : 0), -80, 0.6); }
         fill(0x30); disc(e.x, e.y + 2, 3 + (blinkOn(T, 15) ? 1 : 0)); fill(0x38); disc(e.x, e.y + 2, 2);
         break;
       }
@@ -380,9 +531,11 @@ export async function battle(G, foeId, opts = {}) {
   }
   function draw(now) {
     const dt = Math.min(0.05, (now - last) / 1000); last = now; T += dt;
+    const adt = stop > 0 ? 0 : dt; stop = Math.max(0, stop - dt);   // a hit-stop holds both cards
     cx.drawImage(bg, 0, 0, 160, 120);   // the paper scenery (drawn once)
     if (src && src.complete && src.naturalWidth && art && fx.alpha > 0) { if (!silTried) makeSil(); drawFoe(); }
-    marks();
+    drawHero();   // in the foreground, so when he lunges he is in front of the foe
+    marks(); heroMarks(); corners();
     for (let i = 0; i < NF; i++) if (F[i].on) drawFx(F[i], dt);
     for (let i = 0; i < NP; i++) {
       const p = P[i]; if (!p.on) continue;
@@ -391,6 +544,7 @@ export async function battle(G, foeId, opts = {}) {
       if (p.life < 0.12 && !blinkOn(p.life, 15)) continue;
       const x = Math.round(p.x), y = Math.round(p.y); cx.fillStyle = COLS[p.c];
       if (p.k === 1) { cx.fillRect(x - 1, y - 2, 3, 1); cx.fillRect(x - 1, y + 2, 3, 1); cx.fillRect(x - 2, y - 1, 1, 3); cx.fillRect(x + 2, y - 1, 1, 3); cx.fillStyle = COLS[0x30]; cx.fillRect(x - 1, y - 1, 1, 1); }
+      else if (p.k === 3) { const f = ((T * 14 | 0) + i) & 1; cx.fillRect(x, y, f ? 2 : 1, f ? 1 : 2); p.x += Math.sin(T * 9 + i) * 12 * dt; }   // a paper scrap fluttering down
       else if (p.k === 2 && p.s > 2) { const a = p.s >> 1; cx.fillRect(x - a, y, p.s, 1); cx.fillRect(x, y - a, 1, p.s); if (p.s > 3) { cx.fillStyle = COLS[0x30]; cx.fillRect(x, y, 1, 1); } }
       else cx.fillRect(x, y, p.s, p.s);
     }
@@ -403,8 +557,8 @@ export async function battle(G, foeId, opts = {}) {
       const X = Math.max(1, Math.min(159 - tw, o.x - tw / 2)), Y = Math.max(1, o.y + dy - th / 2);
       cx.save(); cx.translate(X + 2, Y + th / 2); cx.rotate(Math.sin(tt * 9) * 0.12 * (1 - Math.min(1, tt * 1.5)) - 0.05); cx.translate(-X - 2, -Y - th / 2);
       cx.fillStyle = 'rgba(30,18,6,0.35)'; cx.fillRect(X + 1, Y + 1, tw, th);
-      cx.fillStyle = '#5a4630'; cx.fillRect(X - 0.5, Y - 0.5, tw + 1, th + 1); cx.fillStyle = o.crit ? '#ffe9b0' : '#fffaf0'; cx.fillRect(X, Y, tw, th);
-      cx.fillStyle = '#5a4630'; cx.fillRect(X + 1.5, Y + th / 2 - 0.75, 1.5, 1.5);
+      cx.fillStyle = o.red ? '#4a140a' : '#5a4630'; cx.fillRect(X - 0.5, Y - 0.5, tw + 1, th + 1); cx.fillStyle = o.red ? '#c4321a' : o.crit ? '#ffe9b0' : '#fffaf0'; cx.fillRect(X, Y, tw, th);
+      cx.fillStyle = o.red ? '#fff4dc' : '#5a4630'; cx.fillRect(X + 1.5, Y + th / 2 - 0.75, 1.5, 1.5);
       cx.drawImage(s, R3(X + 5), R3(Y + 1), w, hh);
       cx.restore();
     }
@@ -415,15 +569,17 @@ export async function battle(G, foeId, opts = {}) {
     else { const back = 45 * dt; fx.kx = Math.abs(fx.kx) <= back ? 0 : fx.kx - Math.sign(fx.kx) * back; fx.ky = Math.abs(fx.ky) <= back ? 0 : fx.ky - Math.sign(fx.ky) * back; }
     if (fx.flee) fx.kx += fx.flee * dt;
     if (fx.dissRate > 0) fx.diss = Math.min(1, fx.diss + fx.dissRate * dt);
+    // the hinge springs (rock back, roll), the hero's clock and flash, the target marks
+    fx.tbv += (-150 * fx.tb - 13 * fx.tbv) * adt; fx.tb += fx.tbv * adt;
+    fx.rv += (-170 * fx.roll - 12 * fx.rv) * adt; fx.roll += fx.rv * adt;
+    hero.t += adt; hero.tintT = Math.max(0, hero.tintT - dt); hl.t -= dt;
     if (alive) raf = requestAnimationFrame(draw);
   }
   raf = requestAnimationFrame(draw);
 
   // ---------------------------------------------------------------- hero-side effects (the status window)
-  const restart = (node, cls) => { node.classList.remove(cls); void node.offsetWidth; node.classList.add(cls); };
   const shakeScreen = (lv = 1) => { if (fast) return; root.classList.remove('hit', 'hit2'); void root.offsetWidth; root.classList.add(lv > 1 ? 'hit2' : 'hit'); };
   const glow = (cls) => { if (fast) return; stat.classList.remove('hurt', 'glow', 'mpglow', 'shine', 'psnfl', 'pinfl'); void stat.offsetWidth; stat.classList.add(cls); };
-  const heroNum = (s, cls) => { if (fast) return; snum.textContent = s; snum.className = 'snum ' + cls; restart(snum, 'go'); };
   const rnd = (a) => (Math.random() - 0.5) * a;
 
   drawStat();
@@ -439,34 +595,38 @@ export async function battle(G, foeId, opts = {}) {
   // three saber arcs (down-left, down-right, a rising sweep); the knock-back follows the cut
   const ARCS = [[FCX - 32, FCY - 32, 48, -0.55, 2.05, -6, 1], [FCX + 32, FCY - 32, 48, PI + 0.55, PI - 2.05, 6, 1], [FCX, FCY + 46, 50, PI + 0.4, TAU - 0.4, 0, -5]];
   const arc = (v, pal, s, dur, delay = 0, dx = 0) => { const A = ARCS[v]; add('arc', dur, { x: A[0] + dx, y: A[1], r: A[2], a0: A[3], a1: A[4], s, p: pal }, delay); };
+  // his card winds up, dashes in front of the foe and swings; the blow lands as the saber comes through
   async function heroAttack() {
     const atk = R.heroAtk(h);
+    mark(1, 0.9);
     if (Math.random() < R.CRIT) {
       const d = R.critDamage(atk);
-      if (!fast) { au.sfx('slash2'); arc(0, ARC_PAL.crit, 8, 0.34); arc(1, ARC_PAL.crit, 8, 0.34, 0.1); await sleep(230); }
+      if (!fast) { heroAct('crit'); await sleep(160); au.sfx('dash'); await sleep(80); au.sfx('slash2'); arc(0, ARC_PAL.crit, 8, 0.3); arc(1, ARC_PAL.crit, 8, 0.3, 0.08); await sleep(130); }
       return hurtFoe(d, 'crit');
     }
     const v = Math.random() * 3 | 0;
     if (Math.random() < R.dodgeChance(foe.agi, R.stat(h).agi)) {
-      if (!fast) { au.sfx('whiff'); fx.dodge = 0.42; fx.ddir = v === 1 ? -1 : 1; arc(v, ARC_PAL.whiff, 4, 0.28, 0.04, v === 1 ? 14 : -14); await sleep(150); pop(t(['落空', 'MISS']), 0x30, FCX, FTOP + 16, 4 / 3); }
+      if (!fast) { heroAct('miss'); au.sfx('dash'); await sleep(170); au.sfx('whiff'); fx.dodge = 0.42; fx.ddir = 1; arc(v, ARC_PAL.whiff, 4, 0.28, 0.03, -10); await sleep(150); pop(t(['落空', 'MISS']), 0x30, FCX, FTOP + 16, 4 / 3); }
       return say(fname + '閃開了！', fname + ' dodges!');
     }
-    if (!fast) { au.sfx('slash'); arc(v, ARC_PAL.cut, 7, 0.32); await sleep(120); }
+    if (!fast) { heroAct('atk'); await sleep(100); au.sfx('dash'); await sleep(95); au.sfx('slash'); arc(v, ARC_PAL.cut, 7, 0.3); await sleep(95); }
     return hurtFoe(R.physDamage(atk, foe.def * foe.guard), 'hit', v);
   }
-  // the blow lands: white hit-stop, sparks, knock-back, the number
+  // the blow lands on the foe's card: white hit-stop, sparks and torn paper, it rocks back on its hinge, the number
   async function impact(d, how, v = 0) {
     if (fast) return;
-    const crit = how === 'crit', big = crit || how === 'qi2';
-    const x = FCX + rnd(10), y = FCY + rnd(12);
-    au.sfx(crit ? 'crit' : how === 'qi' || how === 'qi2' ? 'boom' : 'hit');
-    fx.white = big ? 0.11 : 0.065;
+    const crit = how === 'crit', big = crit || how === 'qi2', qi = how === 'qi' || how === 'qi2';
+    const x = FCX - (qi ? 0 : W0 * 0.12) + rnd(10), y = FCY + rnd(12);
+    au.sfx(crit ? 'crit' : qi ? 'boom' : 'hit');
+    fx.white = big ? 0.11 : 0.065; stop = fx.white;
     add('star', big ? 0.32 : 0.24, { x, y, r: big ? 14 : 10, p: crit ? CRITSPARK : SPARK });
-    burst(crit ? CRITSPARK : how === 'qi' || how === 'qi2' ? QI2 : SPARK, big ? 40 : 22, x, y, big ? 140 : 100, 0, 2, big ? 0.45 : 0.32, 120);
+    burst(crit ? CRITSPARK : qi ? QI2 : SPARK, big ? 40 : 22, x, y, big ? 140 : 100, 0, 2, big ? 0.45 : 0.32, 120);
+    burst(SCRAPS, big ? 16 : 9, x, y, big ? 95 : 70, 45, 1, 0.9, 70, 3);
     if (big) { fx.scr = 0.05; fx.scrC = 0x30; shakeScreen(2); }
     await sleep(big ? 100 : 60);   // hit-stop
     fx.kx = crit ? 9 : how === 'hit' ? ARCS[v][5] || 0 : 0; fx.ky = crit ? -4 : how === 'hit' ? ARCS[v][6] : -4; fx.shake = big ? 0.25 : 0.14;
-    if (how === 'qi' || how === 'qi2') fx.kx = 0;
+    if (qi) fx.kx = 0;
+    fx.tbv += big ? 12 : 7; fx.rv += how === 'hit' ? (ARCS[v][5] > 0 ? 2.4 : ARCS[v][5] < 0 ? -2.4 : 0) : crit ? 3 : 0;
     pop(d, crit ? 0x28 : 0x30, FCX, FTOP + 16, crit || how === 'qi2' ? 5 / 3 : 4 / 3, crit ? 0x27 : -1);
   }
   async function hurtFoe(d, how = 'hit', v = 0) {
@@ -477,56 +637,70 @@ export async function battle(G, foeId, opts = {}) {
     if (how === 'crit') await say('會心一擊！', 'A critical blow!', 250);
     await say(fname + '受到' + d + '點傷害！', fname + ' takes ' + d + ' damage!');
   }
-  // ---------------------------------------------------------------- foe blows
-  async function hurtHero(d, crit = false, col = 0x30) {
-    if (d <= 0) { au.sfx('miss'); heroNum('0', 'white'); return say('奕叡沒有受傷！', 'Yi Rui is unhurt!'); }
-    au.sfx('hurt'); shakeScreen(crit || d >= R.stat(h).maxHp / 4 ? 2 : 1); glow('hurt');
-    if (crit && !fast) { fx.scr = 0.07; fx.scrC = 0x16; }
-    h.hp = Math.max(0, h.hp - d); drawStat(); heroNum('-' + d, crit ? 'crit' : 'red');
+  // ---------------------------------------------------------------- foe blows (they land on the hero's card)
+  async function hurtHero(d, crit = false) {
+    mark(2, 0.6);
+    if (d <= 0) {
+      au.sfx(fast ? 'miss' : 'block');
+      if (!fast) { heroAct('block'); add('star', 0.2, { x: HOMEX + 10, y: HCY - 8, r: 6, p: GREYS }); heroPop('0'); }
+      return say('奕叡沒有受傷！', 'Yi Rui is unhurt!');
+    }
+    const big = crit || d >= R.stat(h).maxHp / 4;
+    au.sfx('hurt'); shakeScreen(big ? 2 : 1); glow('hurt');
+    if (!fast) {
+      if (me.guard > 1) { au.sfx('block'); heroAct('block'); tintHero('gold', 0.24); add('star', 0.24, { x: HOMEX + 12, y: HCY - 9, r: 8, p: GOLD }); burst(GOLD, 10, HOMEX + 12, HCY - 9, 70); }
+      else { heroAct(big ? 'hurt2' : 'hurt'); tintHero('red', big ? 0.45 : 0.34); }
+      stop = 0.06;
+      burst(HURT, big ? 22 : 14, HOMEX + 2, HCY - 2, big ? 110 : 80, 0, 2, 0.32, 120); burst(SCRAPS, big ? 12 : 7, HOMEX, HCY - 4, 70, 40, 1, 0.9, 70, 3);
+      if (crit) { fx.scr = 0.07; fx.scrC = 0x16; }
+    }
+    h.hp = Math.max(0, h.hp - d); drawStat(); heroHurtTag(d, big);
     await say('奕叡受到' + d + '點傷害！', 'Yi Rui takes ' + d + ' damage!');
   }
-  // the foe steps forward while it announces the blow; returns once the blow's picture is under way
+  // the foe rears back and lunges at the hero while it announces the blow; its effect then lands on his card
   async function foeBlow(kind, line) {
+    mark(2, 1.0);
     if (!fast) fx.lunge = 0.36;
     await line;
     if (fast) return;
-    const mc = E.mc || QI, mx = FCX + rnd(16), my = FCY + 4;
+    const mc = E.mc || QI, mx = FCX - W0 * 0.25 + rnd(8), my = FCY + 2;   // the foe's front edge
     switch (kind) {
-      case 'claw': au.sfx('claw'); add('claw', 0.34, { x: 46 + rnd(10), y: 36 }); await sleep(170); break;
-      case 'bite': au.sfx('bite'); add('bite', 0.36, { y: 72 }); await sleep(160); fx.scr = 0.03; fx.scrC = 0x06; break;
-      case 'ram': au.sfx('blunt'); fx.lunge = Math.max(fx.lunge, 0.2); add('impact', 0.3, { x: 80 + rnd(20), y: 92, r: 22, p: GOLD }); burst(DUST, 14, 80, 104, 70, 20, 2, 0.4, 120); await sleep(120); break;
-      case 'blunt': au.sfx('blunt'); add('impact', 0.3, { x: 80 + rnd(30), y: 92 + rnd(8), r: 26, p: GOLD }); burst(GOLD, 12, 80, 96, 90, 0, 2, 0.3); await sleep(120); break;
-      case 'sting': au.sfx('sting'); for (let i = 0; i < 3; i++) add('sting', 0.14, { x: mx, y: my, x1: 60 + i * 20 + rnd(8), y1: 100 + rnd(10), p: [0x28, 0x38] }, i * 0.07); await sleep(220); break;
-      case 'arrow': au.sfx('arrow'); add('arrow', 0.24, { x: mx, y: FCY - 4, x1: 80 + rnd(24), y1: 106, p: [0x17] }); await sleep(200); add('star', 0.22, { x: 80, y: 106, r: 10, p: SPARK }); burst(SPARK, 12, 80, 106, 90, 0, 2, 0.3); break;
-      case 'magic': au.sfx('magic'); add('orb', 0.34, { x: mx, y: my, x1: 80 + rnd(20), y1: 104, r: 5, r1: 13, v: 0.4, p: mc }); await sleep(320); add('rings', 0.3, { x: 80, y: 104, r: 4, r1: 40, p: mc }); burst(mc, 28, 80, 104, 110, 0, 2, 0.4); break;
-      case 'spore': au.sfx('bubble'); add('bubbles', 0.45, { x: 80, y: 116, r: 64, v: 170, p: mc }); await sleep(260); break;
-      default: au.sfx('slash'); { const l2r = Math.random() < 0.5; add('wslash', 0.3, { x: l2r ? 34 : 126, y: 34 + rnd(10), x1: l2r ? 128 : 32, y1: 112 }); } await sleep(130);
+      case 'claw': au.sfx('claw'); add('claw', 0.34, { x: HOMEX - 21, y: HTOP - 4, s: 0.62 }); await sleep(170); break;
+      case 'bite': au.sfx('bite'); add('bite', 0.36, { x: HOMEX, y: HCY - 4, r: 23 }); await sleep(160); fx.scr = 0.03; fx.scrC = 0x06; break;
+      case 'ram': au.sfx('blunt'); fx.lunge = Math.max(fx.lunge, 0.2); add('impact', 0.3, { x: HOMEX + 6, y: HCY - 2, r: 18, p: GOLD }); burst(DUST, 14, HOMEX, HFOOT - 2, 70, 20, 2, 0.4, 120); await sleep(120); break;
+      case 'blunt': au.sfx('blunt'); add('impact', 0.3, { x: HOMEX + 4 + rnd(6), y: HCY - 6 + rnd(6), r: 20, p: GOLD }); burst(GOLD, 12, HOMEX + 4, HCY - 6, 90, 0, 2, 0.3); await sleep(120); break;
+      case 'sting': au.sfx('sting'); for (let i = 0; i < 3; i++) add('sting', 0.14, { x: mx, y: my, x1: HOMEX - 6 + i * 6 + rnd(4), y1: HCY - 8 + rnd(10), p: [0x28, 0x38] }, i * 0.07); await sleep(220); break;
+      case 'arrow': au.sfx('arrow'); add('arrow', 0.24, { x: mx, y: FCY - 4, x1: HOMEX + 3, y1: HCY - 6, p: [0x17] }); await sleep(200); add('star', 0.22, { x: HOMEX + 3, y: HCY - 6, r: 9, p: SPARK }); burst(SPARK, 12, HOMEX + 3, HCY - 6, 90, 0, 2, 0.3); break;
+      case 'magic': au.sfx('magic'); add('orb', 0.34, { x: mx, y: my, x1: HOMEX + 2, y1: HCY - 4, r: 4, r1: 9, v: 0.4, p: mc }); await sleep(320); add('rings', 0.3, { x: HOMEX + 2, y: HCY - 4, r: 3, r1: 26, p: mc }); burst(mc, 24, HOMEX + 2, HCY - 4, 100, 0, 2, 0.4); break;
+      case 'spore': au.sfx('bubble'); add('bubbles', 0.45, { x: HOMEX, y: HFOOT, r: 22, v: 150, p: mc }); await sleep(260); break;
+      default: au.sfx('slash'); { const l2r = Math.random() < 0.5; add('wslash', 0.3, { x: l2r ? HOMEX - 22 : HOMEX + 22, y: HTOP - 6 + rnd(6), x1: l2r ? HOMEX + 20 : HOMEX - 20, y1: HFOOT - 4, p: WSL }); } await sleep(130);
     }
   }
   // a foe's art aimed at the hero
   async function foeArt(k) {
     if (fast) return;
-    const mc = E.mc, x = FCX + rnd(10), y = FCY + 2;
-    if (foeId === 'bx_crow' && (k === 'fire' || k === 'fire2')) { au.sfx('breath'); add('breath', 0.55, { x: FCX, y: FTOP + H0 * 0.3, p: FIRE }); await sleep(520); fx.scr = 0.04; fx.scrC = 0x27; return; }
-    if (foeId === 'e_thundersprite' && k === 'fire') { au.sfx('charge'); await sleep(150); au.sfx('thunder'); add('bolt', 0.4, { x1: 80 + rnd(20), y1: 112, p: [0x28] }); fx.scr = 0.04; fx.scrC = 0x30; await sleep(130); fx.scr = 0.04; fx.scrC = 0x38; await sleep(160); return; }
-    if (k === 'mist') { au.sfx('bubble'); add('bubbles', 0.55, { x: 80, y: 116, r: 72, v: 220, p: mc || MIST }); await sleep(400); return; }
+    const mc = E.mc, x = FCX - W0 * 0.2 + rnd(8), y = FCY + 2, hx = HOMEX + 2, hy = HCY - 4;
+    if (foeId === 'bx_crow' && (k === 'fire' || k === 'fire2')) { const y0 = FTOP + H0 * 0.3; au.sfx('breath'); add('breath', 0.55, { x: FCX - 4, y: y0, a0: Math.atan2(hy - y0, hx - FCX + 4), p: FIRE }); await sleep(520); fx.scr = 0.04; fx.scrC = 0x27; return; }
+    if (foeId === 'e_thundersprite' && k === 'fire') { au.sfx('charge'); await sleep(150); au.sfx('thunder'); add('bolt', 0.4, { x1: hx + rnd(6), y1: hy + 6, p: [0x28] }); fx.scr = 0.04; fx.scrC = 0x30; await sleep(130); fx.scr = 0.04; fx.scrC = 0x38; await sleep(160); return; }
+    if (k === 'mist') { au.sfx('bubble'); add('bubbles', 0.55, { x: HOMEX, y: HFOOT, r: 26, v: 200, p: mc || MIST }); await sleep(400); return; }
     if (k === 'fire' || k === 'fire2') {
       const p = mc || (k === 'fire2' ? FIRE2 : FIRE), big = k === 'fire2';
-      au.sfx('charge'); add('orb', big ? 0.5 : 0.38, { x, y, x1: 80, y1: 104, r: big ? 6 : 4, r1: big ? 18 : 13, v: 0.45, p }); await sleep(big ? 480 : 360);
-      au.sfx('fire'); burst(p, big ? 40 : 26, 80, 104, big ? 120 : 90, 30, 2, 0.45, 60); if (big) { fx.scr = 0.05; fx.scrC = p[1]; } return;
+      au.sfx('charge'); add('orb', big ? 0.5 : 0.38, { x, y, x1: hx, y1: hy, r: big ? 6 : 4, r1: big ? 14 : 10, v: 0.45, p }); await sleep(big ? 480 : 360);
+      au.sfx('fire'); burst(p, big ? 40 : 26, hx, hy, big ? 110 : 85, 30, 2, 0.45, 60); if (big) { fx.scr = 0.05; fx.scrC = p[1]; } return;
     }
     // qi / qi2 in a foe's hands: its own coloured orb, a big one with a flash for qi2
     const p = mc || QI, big = k === 'qi2';
-    au.sfx('charge'); add('orb', big ? 0.5 : 0.36, { x, y, x1: 80 + rnd(16), y1: 104, r: big ? 6 : 4, r1: big ? 18 : 13, v: 0.45, p }); await sleep(big ? 480 : 340);
-    au.sfx(big ? 'release' : 'magic'); burst(p, big ? 40 : 24, 80, 104, big ? 130 : 90, 0, 2, 0.4); if (big) { fx.scr = 0.06; fx.scrC = 0x30; }
+    au.sfx('charge'); add('orb', big ? 0.5 : 0.36, { x, y, x1: hx, y1: hy, r: big ? 6 : 4, r1: big ? 14 : 10, v: 0.45, p }); await sleep(big ? 480 : 340);
+    au.sfx(big ? 'release' : 'magic'); burst(p, big ? 40 : 24, hx, hy, big ? 120 : 85, 0, 2, 0.4); if (big) { fx.scr = 0.06; fx.scrC = 0x30; }
   }
   // ---------------------------------------------------------------- healing and guarding pictures
-  function heroHeal(kind, v) {   // kind: hp | mp | cure | big
+  function heroHeal(kind, v) {   // kind: hp | mp | cure | big - the sparkles rise round the hero's card
     if (fast) return;
     const pal = kind === 'mp' ? BLUE : kind === 'cure' ? PURPLE : GREEN;
-    au.sfx('chime'); add('rise', kind === 'big' ? 0.8 : 0.6, { x: 80, y: 120, r: 66, v: kind === 'big' ? 170 : 120, s: 2, p: pal });
+    au.sfx('chime'); add('rise', kind === 'big' ? 0.8 : 0.6, { x: HOMEX, y: HFOOT, r: 20, v: kind === 'big' ? 110 : 80, s: 2, p: pal });
+    heroAct('hop'); tintHero(kind === 'mp' ? 'blue' : kind === 'cure' ? 'purple' : 'green', 0.5);
     glow(kind === 'mp' ? 'mpglow' : kind === 'cure' ? 'psnfl' : 'glow');
-    if (v != null) heroNum('+' + v, kind === 'mp' ? 'blue' : 'green');
+    if (v != null) heroPop('+' + v, kind === 'mp' ? 0x21 : 0x2A);
   }
   function foeHeal(v) {
     if (fast) return;
@@ -541,8 +715,11 @@ export async function battle(G, foeId, opts = {}) {
     const nm = (!isHero && E.skName && E.skName[k]) ? E.skName[k] : [S.zh, S.en];
     if (isHero) h.mp -= S.mp; else if (S.mp) foe.mp -= S.mp;
     drawStat();
+    const atFoe = S.kind === 'hurt' || S.kind === 'sleep' || S.kind === 'seal';
+    if (atFoe) mark(isHero ? 1 : 2, 1.2);
+    if (isHero && !fast && (S.kind === 'heal' || S.kind === 'seal' || S.kind === 'guard')) heroAct('cast');
     const line = say(uname + '使出了「' + nm[0] + '」！', uname + ' uses ' + nm[1] + '!', 300);
-    if (!isHero && !fast && (S.kind === 'hurt' || S.kind === 'sleep' || S.kind === 'seal')) fx.lunge = 0.36;
+    if (!isHero && !fast && atFoe) fx.lunge = 0.36;
     await line;
     if (S.kind === 'heal') {
       const v = R.skillRoll(k);
@@ -552,8 +729,10 @@ export async function battle(G, foeId, opts = {}) {
     if (S.kind === 'hurt') {
       const v = R.skillRoll(k);
       if (isHero) {
-        if (!fast && k === 'qi2') { au.sfx('charge'); add('rise', 0.3, { x: 80, y: 120, r: 50, v: 80, p: QI2 }); await sleep(160); au.sfx('beam'); add('beam', 0.46, { x: FCX, y1: FCY + H0 * 0.3, p: QI2 }); await sleep(300); }
-        else if (!fast) { au.sfx('charge'); add('orb', 0.38, { x: 80, y: 110, x1: FCX, y1: FCY, r: 8, r1: 4, v: 0.45, p: QI }); await sleep(360); au.sfx('release'); add('rings', 0.3, { x: FCX, y: FCY, r: 3, r1: 26, p: QI2 }); burst(QI2, 36, FCX, FCY, 120, 0, 2, 0.4); }
+        // qi gathers in his raised hands and flies from his card to the foe's (shrinking as it goes into the page);
+        // 天河刀氣 gathers round him, then pours down on the foe
+        if (!fast && k === 'qi2') { heroAct('cast'); tintHero('blue', 0.5); au.sfx('charge'); add('rise', 0.32, { x: HOMEX, y: HFOOT, r: 18, v: 90, p: QI2 }); await sleep(160); au.sfx('beam'); add('beam', 0.46, { x: FCX, y1: FCY + H0 * 0.3, p: QI2 }); await sleep(300); }
+        else if (!fast) { heroAct('cast'); tintHero('blue', 0.4); au.sfx('charge'); add('orb', 0.4, { x: HOMEX + 8, y: HTOP - 4, x1: FCX, y1: FCY, r: 7, r1: 5, v: 0.42, p: QI }); await sleep(390); au.sfx('release'); add('rings', 0.3, { x: FCX, y: FCY, r: 3, r1: 26, p: QI2 }); burst(QI2, 36, FCX, FCY, 120, 0, 2, 0.4); }
         return hurtFoe(v, k === 'qi2' ? 'qi2' : 'qi');
       }
       await foeArt(k);
@@ -563,12 +742,13 @@ export async function battle(G, foeId, opts = {}) {
     }
     if (S.kind === 'sleep') {
       if (isHero) {
-        if (!fast) { for (let i = 0; i < 3; i++) { add('pt', 0.6 - i * 0.08, { x: FCX + rnd(W0 * 0.5), y: FCY + rnd(H0 * 0.5) }, i * 0.08); } au.sfx('point'); await sleep(80); au.sfx('point'); await sleep(80); au.sfx('point'); await sleep(200); }
+        // he darts in and strikes three points on the foe's card with two fingers
+        if (!fast) { heroAct('jab'); au.sfx('dash'); await sleep(200); for (let i = 0; i < 3; i++) { add('pt', 0.6 - i * 0.08, { x: FCX + rnd(W0 * 0.5), y: FCY + rnd(H0 * 0.5) }, i * 0.08); } au.sfx('point'); await sleep(80); au.sfx('point'); await sleep(80); au.sfx('point'); fx.tbv += 4; await sleep(200); }
         if (Math.random() < 1 - (foe.res || 0) * 0.9) { foe.sleep = 1; au.sfx('zz'); fx.blink = 0.12; return say(fname + '被點中穴道，動彈不得！', fname + ' is frozen by the strike!'); }
         au.sfx('miss'); burst(GREYS, 12, FCX, FCY, 50); return say('但是沒有效果。', 'But it has no effect.');
       }
-      if (!fast) { for (let i = 0; i < 3; i++) add('pt', 0.35, { x: 50 + i * 30 + rnd(8), y: 96 + rnd(10) }, i * 0.07); au.sfx('point'); await sleep(260); }
-      if (Math.random() < 0.7) { me.sleep = 1; au.sfx('zz'); glow('pinfl'); drawStat(); return say('奕叡被點中穴道，動彈不得！', 'Yi Rui is frozen by the strike!'); }
+      if (!fast) { for (let i = 0; i < 3; i++) add('pt', 0.35, { x: HOMEX - 8 + i * 8 + rnd(3), y: HCY - 6 + rnd(10) }, i * 0.07); au.sfx('point'); await sleep(260); }
+      if (Math.random() < 0.7) { me.sleep = 1; au.sfx('zz'); glow('pinfl'); if (!fast) { heroAct('hurt'); tintHero('gold', 0.3); } drawStat(); return say('奕叡被點中穴道，動彈不得！', 'Yi Rui is frozen by the strike!'); }
       au.sfx('miss'); return say('奕叡運氣衝開了穴道！', 'Yi Rui forces the point open!');
     }
     if (S.kind === 'seal') {
@@ -577,15 +757,15 @@ export async function battle(G, foeId, opts = {}) {
         if (Math.random() < 1 - (foe.res || 0) * 0.9) { foe.sealed = true; au.sfx('skill'); fx.blink = 0.12; return say(fname + '的經脈被封住了！', fname + '\'s meridians are sealed!'); }
         au.sfx('miss'); burst(GREYS, 12, FCX, FCY, 50); return say('但是沒有效果。', 'But it has no effect.');
       }
-      if (!fast) { au.sfx('sealfx'); add('sealbox', 0.5, { x: 80, y: 76, r: 34 }); await sleep(420); }
-      if (Math.random() < 0.6) { me.sealed = true; au.sfx('skill'); glow('pinfl'); drawStat(); return say('奕叡的經脈被封住了！', 'Yi Rui\'s meridians are sealed!'); }
+      if (!fast) { au.sfx('sealfx'); add('sealbox', 0.5, { x: HOMEX, y: HCY - 2, r: 20 }); await sleep(420); }
+      if (Math.random() < 0.6) { me.sealed = true; au.sfx('skill'); glow('pinfl'); if (!fast) tintHero('red', 0.3); drawStat(); return say('奕叡的經脈被封住了！', 'Yi Rui\'s meridians are sealed!'); }
       au.sfx('miss'); return say('但是沒有效果。', 'But it has no effect.');
     }
     if (S.kind === 'guard') {
       au.sfx(fast ? 'heal' : 'shield');
       if (isHero) {
         if (me.guard > 1) return say('已經護住全身了。', 'Already guarded.');
-        me.guard = 1.5; drawStat(); if (!fast) { glow('shine'); add('rise', 0.7, { x: 80, y: 120, r: 66, v: 130, s: 2, p: GOLD }); add('rings', 0.6, { x: 80, y: 118, r: 8, r1: 70, p: GOLD }); }
+        me.guard = 1.5; drawStat(); if (!fast) { glow('shine'); tintHero('gold', 0.6); add('rise', 0.7, { x: HOMEX, y: HFOOT, r: 20, v: 100, s: 2, p: GOLD }); add('rings', 0.6, { x: HOMEX, y: HCY, r: 6, r1: 34, p: GOLD }); }
         return say('奕叡全身如金鐘罩體！', 'Yi Rui\'s body turns hard as bronze!');
       }
       if (foe.guard > 1) return say('但是沒有變化。', 'But nothing changes.'); foe.guard = 1.5;
@@ -593,13 +773,13 @@ export async function battle(G, foeId, opts = {}) {
       return say(fname + '的防禦提高了！', fname + '\'s defence rises!');
     }
   }
-  function poisonFx() { if (fast) { au.sfx('poison'); return; } au.sfx('bubble'); add('bubbles', 0.4, { x: 80, y: 116, r: 56, v: 110, p: PURPLE }); glow('psnfl'); }
+  function poisonFx() { if (fast) { au.sfx('poison'); return; } au.sfx('bubble'); add('bubbles', 0.4, { x: HOMEX, y: HFOOT, r: 20, v: 90, p: PURPLE }); tintHero('purple', 0.4); glow('psnfl'); }
   async function useItem(id) {
     const it = ITEMS[id]; R.removeItem(h, id);
     await say('奕叡使用了' + it.zh + '。', 'Yi Rui uses the ' + it.en + '.', 300);
     if (it.heal) { au.sfx('heal'); const mx = R.stat(h).maxHp, v = R.rand(it.heal[0], it.heal[1]), b = h.hp; h.hp = Math.min(mx, h.hp + v); drawStat(); heroHeal(it.heal[0] > 100 ? 'big' : 'hp', h.hp - b); return say('體力回復了' + (h.hp - b) + '點。', 'Recovered ' + (h.hp - b) + ' HP.'); }
     if (it.mp) { au.sfx('heal'); const mx = R.stat(h).maxMp, b = h.mp; h.mp = Math.min(mx, h.mp + it.mp); drawStat(); heroHeal('mp', h.mp - b); return say('內力回復了' + (h.mp - b) + '點。', 'Recovered ' + (h.mp - b) + ' MP.'); }
-    if (it.cure) { au.sfx('heal'); h.poison = false; drawStat(); heroHeal('cure', null); burst(PURPLE, 16, 80, 104, 60, 30, 1, 0.4); return say('毒解了。', 'The poison is gone.'); }
+    if (it.cure) { au.sfx('heal'); h.poison = false; drawStat(); heroHeal('cure', null); burst(PURPLE, 16, HOMEX, HCY, 60, 30, 1, 0.4); return say('毒解了。', 'The poison is gone.'); }
   }
   async function foeSalve() {
     foe.items--; const v = R.rand(25, 35); const b = foe.hp; foe.hp = Math.min(foe.maxHp, foe.hp + v); au.sfx('heal'); foeHeal(foe.hp - b);
@@ -636,10 +816,12 @@ export async function battle(G, foeId, opts = {}) {
     }
     // a plain attack
     const dodged = Math.random() < R.dodgeChance(s.agi, foe.agi);
-    if (dodged) {
+    if (dodged) {   // he sidesteps: the foe's cut whistles through the place he stood
+      mark(2, 0.9);
       if (!fast) fx.lunge = 0.36;
       await say(fname + '攻擊！', fname + ' attacks!', 220);
-      au.sfx(fast ? 'miss' : 'whiff'); heroNum(t(['落空', 'MISS']), 'white');
+      au.sfx(fast ? 'miss' : 'whiff');
+      if (!fast) { heroAct('dodge'); add('wslash', 0.26, { x: HOMEX + 20, y: HTOP - 4, x1: HOMEX + 2, y1: HFOOT - 2, p: WHIFF }); heroPop(t(['落空', 'MISS'])); }
       return say('奕叡閃開了！', 'Yi Rui dodges!');
     }
     const crit = Math.random() < R.CRIT;
@@ -692,7 +874,7 @@ export async function battle(G, foeId, opts = {}) {
         if (foe.hp <= 0 || h.hp <= 0 || foe.fled) break;
       }
     }
-    if (h.poison && h.hp > 0 && foe.hp > 0 && !foe.fled) { const d = Math.max(1, Math.floor(R.stat(h).maxHp / 16)); h.hp = Math.max(1, h.hp - d); poisonFx(); heroNum('-' + d, 'purple'); drawStat(); await say('毒性發作，失去' + d + '點體力。', 'Poison: -' + d + ' HP.', 300); }
+    if (h.poison && h.hp > 0 && foe.hp > 0 && !foe.fled) { const d = Math.max(1, Math.floor(R.stat(h).maxHp / 16)); h.hp = Math.max(1, h.hp - d); poisonFx(); heroHurtTag(d, false); drawStat(); await say('毒性發作，失去' + d + '點體力。', 'Poison: -' + d + ' HP.', 300); }
     if (foe.hp <= 0) result = 'win'; else if (h.hp <= 0) result = 'lose'; else if (foe.fled) result = 'fled';
   }
 
@@ -713,7 +895,7 @@ export async function battle(G, foeId, opts = {}) {
       au.sfx('vanish'); fx.blink = 0.22; await sleep(220);
       au.sfx('die'); for (let i = 0; i < NSTRIP; i++) thr[i] = Math.random(); fx.dissRate = 1 / 0.45; await sleep(470);
     }
-    fx.alpha = 0;
+    fx.alpha = 0; if (!fast) heroAct('hop');
     await say(E.boss ? '打倒了' + fname + '！' : '打倒了' + fname + '！', 'You defeated the ' + fname + '!', 200);
     au.stop(); if (!E.boss || !opts.final) await au.jingle('j_win');
     if (E.xp || E.gold) { h.gold += E.gold; await say('獲得 ' + E.xp + ' 點經驗，' + E.gold + ' 兩銀子。', 'Gained ' + E.xp + ' XP and ' + E.gold + ' gold.'); }
@@ -726,6 +908,7 @@ export async function battle(G, foeId, opts = {}) {
     }
     await waitA();
   } else if (result === 'lose') {
+    if (!fast) { heroAct('ko'); au.sfx('fall'); }   // his card falls flat on its back
     au.stop(); await say('奕叡倒下了……', 'Yi Rui has fallen...', 400); await au.jingle('j_over'); await waitA();
   } else if (result === 'run') { await say('順利逃脫了！', 'Got away safely!', 300); }
   else if (result === 'fled') { await wait(300); }

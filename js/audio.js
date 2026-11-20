@@ -107,6 +107,9 @@ export class Audio {
       case 'zz': this.tone('triangle', 330, 220, 0.15, 0.45); this.tone('triangle', 260, 170, 0.18, 0.4, 0.2); break;
       case 'vanish': for (let i = 0; i < 6; i++) this.tone('pulse', 1300 - i * 160, 1300 - i * 160, 0.03, 0.3, i * 0.035); break;
       case 'hurt': this.noise(0.2, 1, 0, 200); this.tone('triangle', 160, 50, 0.2, 0.9); break;
+      case 'dash': this.noise(0.05, 0.45, 0, 1400); this.noise(0.05, 0.4, 0.06, 1400); this.tone('triangle', 260, 520, 0.08, 0.25, 0.02); break;
+      case 'block': this.noise(0.07, 0.8, 0, 2200); this.tone('pulse', 2350, 2350, 0.05, 0.4); this.tone('square', 620, 210, 0.09, 0.3, 0.02); break;
+      case 'fall': this.noise(0.2, 0.9, 0, 120); this.tone('triangle', 120, 40, 0.22, 0.9); break;
       case 'miss': this.tone('pulse', 400, 900, 0.08, 0.4); break;
       case 'skill': for (let i = 0; i < 5; i++) this.tone('pulse', 700 + i * 200, 900 + i * 200, 0.05, 0.4, i * 0.04); break;
       case 'heal': for (let i = 0; i < 6; i++) this.tone('pulse', 600 + i * 150, 600 + i * 150, 0.05, 0.35, i * 0.05); break;

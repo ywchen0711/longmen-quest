@@ -10,7 +10,14 @@ An original 8-bit wuxia role-playing game about the size of the first 8-bit cons
   - Going into a town, a cave or back out to the world turns the page: the pop-ups fold flat, the page lifts and turns over, and the new ones rise.
   - Water is printed blue with cut-out paper waves that bob. In dark places your lantern is a warm light.
   - A warm desk lamp lights the book from one side, with a light tilt-shift blur like a photo of a real pop-up book.
-- Battles are a pop-up spread: layered cut-out scenery, and the foe's picture is a card that rises from the bottom of the page on its hinge. Damage numbers are little paper tags.
+- The camera looks down on the open book from far enough to see a good stretch of the map round you.
+- Battles are a pop-up spread: layered cut-out scenery, the foe's picture a card that rises from the bottom of the page on its hinge, and 奕叡 himself (his back-view sprite as a card) in the lower-left foreground. Every exchange shows who strikes and who is struck:
+  - The target is boxed by blinking corner marks: yellow round the foe, red round 奕叡.
+  - 奕叡 attacks: his card leans back, dashes in front of the foe, and swings his ring-pommel saber (a drawn blade with a smear behind its tip). On the hit, both cards freeze for a moment, the foe's card flashes white, rocks back on its hinge and rolls, and paper scraps fly off it. A critical hit glints first and cuts there and back. On a miss the foe sidesteps and the swing goes through the air. Then he hops back.
+  - The foe attacks: its card rears back and lunges at him, and its claws, jaws, weapon, arrow, magic, poison, fire or lightning land on his card. His card flashes white, then red, and is knocked back. The status note flashes red too. When he dodges, he sidesteps and the cut whistles past. When he is guarded, he blocks with the saber.
+  - Damage numbers are little paper tags over the card that was hit: cream for the foe, red for 奕叡.
+  - Arts and items land on the right card: qi flies from his raised hands to the foe, the pressure-point strike darts in, and heals sparkle round him.
+  - A beaten foe burns away. If 奕叡 falls, his card drops flat on its back.
 - Menus and messages are paper notes with torn edges, a paper clip or a strip of tape, and dark ink text. Portraits are pasted-in photos.
 - The title screen is the book's cover, which opens when you start.
 
@@ -82,7 +89,7 @@ Characters:
 
 ## Speed
 
-All the pop-ups of a map are drawn in one instanced draw call (plus one for their card edges and one for their shadows) from one texture atlas. The ground is one quad with one baked texture. There are no shadow maps and no lights: the paper shading is done in the shaders. After the scene there is one full-screen pass (a light tilt-shift and the colour grade). The map is not drawn while a menu or message is up and nothing moves, standing still draws at 30 fps, the 3D view is never rendered taller than 720 pixels (600 on phones), and a watchdog steps the quality down on slow devices.
+All the pop-ups of a map are drawn in one instanced draw call (plus one for their card edges and one for their shadows) from one texture atlas. The ground is one quad with one baked texture. There are no shadow maps and no lights: the paper shading is done in the shaders. After the scene there is one full-screen pass (a light tilt-shift and the colour grade). The map is not drawn while a menu or message is up and nothing moves, standing still draws at 30 fps, the 3D view is never rendered taller than 720 pixels (680 on phones, at most 1.25 pixels per screen point), and a watchdog steps the quality down on slow devices.
 
 ## Files
 

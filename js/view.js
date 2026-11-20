@@ -12,9 +12,9 @@ import * as THREE from 'three';
 import { EffectComposer } from '../lib/addons/EffectComposer.js';
 import { RenderPass } from '../lib/addons/RenderPass.js';
 import { ShaderPass } from '../lib/addons/ShaderPass.js';
-import { tex, spr, FACES, SPR, POP } from './tiles.js?v=11';
-import { TILES } from './maps.js?v=11';
-import { grainCanvas, woodCanvas, edgeCanvas, dieCut } from './paper.js?v=11';
+import { tex, spr, FACES, SPR, POP } from './tiles.js?v=12';
+import { TILES } from './maps.js?v=12';
+import { grainCanvas, woodCanvas, edgeCanvas, dieCut } from './paper.js?v=12';
 
 // the one full-screen pass: a light depth-of-field blur away from the focus band (one pass, 9 taps where blurred,
 // 1 tap in focus), the linear -> sRGB step and the grade (warm tint, vignette, fades and flashes)
@@ -49,7 +49,7 @@ const PAPER_GLSL = `
   bool has(float f, float bit) { return mod(floor(f / bit + 0.001), 2.0) > 0.5; }
   vec3 shade(vec3 col, vec3 N, vec3 W, float depth) {
     vec3 L = uAmb + uLampCol * max(dot(N, uLampDir), 0.0);
-    vec2 sd = (W.xz - uSpot.xy) * vec2(1.0, 1.35); L *= 1.0 + uSpot.z * (exp(-dot(sd, sd) * 0.012) - 0.55);   // the desk lamp's pool of light
+    vec2 sd = (W.xz - uSpot.xy) * vec2(1.0, 1.35); L *= 1.0 + uSpot.z * (exp(-dot(sd, sd) * 0.0055) - 0.55);   // the desk lamp's pool of light
     if (uLantern.w > 0.0) { float a = clamp(1.0 - distance(W, uLantern.xyz) / uLanternR, 0.0, 1.0); L += uLanternCol * uLantern.w * a * a; }
     col *= L;
     return mix(col, uFogCol, uFog.z * smoothstep(uFog.x, uFog.y, depth));
@@ -153,6 +153,9 @@ const SHADOW_FS = `uniform float uShadowA; uniform vec3 uShadowCol; varying vec2
 
 const WAVE = 1, GLOW = 2, FLAT = 4, RECT = 8, NOSHADOW = 16, NOTAB = 32, NORIM = 64, NOLIDRIM = 128;
 const STIFF = 260, DAMP = 18;
+// the field camera stands this much further back than it first did (the player asked to zoom out by half: about
+// 1.5x as much map in each direction), and everything tied to the size of the view is scaled with it
+const ZOOM = 1.5;
 
 function canvasOf(w, h) { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; }
 function texOf(canvas, { repeat = false, mip = true, nearest = true, flip = false } = {}) {
@@ -212,10 +215,13 @@ export class View {
   resize() {
     const w = this.canvas.clientWidth || 1, h = this.canvas.clientHeight || 1;
     const touch = (navigator.maxTouchPoints || 0) > 0;
-    let pr = Math.min(window.devicePixelRatio || 1, this.quality === 'high' ? 1.25 : 1, this.prCap || 9);
+    // (phones get 1.25 too since the zoom-out made the cards smaller: their picture is small, so it stays cheap, and
+    // the frame-rate watchdog drops it back to 1 first)
+    let pr = Math.min(window.devicePixelRatio || 1, this.quality === 'high' || (touch && this.quality === 'medium') ? 1.25 : 1, this.prCap || 9);
     if (touch) pr = Math.max(1, Math.min(pr, Math.sqrt(2000000 / (w * h))));
-    // never render the 3D map taller than 720 pixels (600 on phones and tablets)
-    pr = Math.min(pr, (touch ? 600 : 720) / h);
+    // never render the 3D map taller than 720 pixels (680 on phones and tablets: a little more than before the
+    // zoom-out, so the smaller cards stay sharp enough to read)
+    pr = Math.min(pr, (touch ? 680 : 720) / h);
     if (this.quality === 'low') pr = Math.min(pr, 1);
     this.renderer.setPixelRatio(pr); this.renderer.setSize(w, h, false);
     this.camera.aspect = w / h; this.camera.updateProjectionMatrix(); this.aspect = w / h;
@@ -367,7 +373,7 @@ export class View {
     for (const [x, z, look] of Object.values(places)) this.placeModel(x, z, look);
     this.printGround(0, 0, Wd, H, (x, z) => ground[z][x]);
     this.finishPieces(); this.setOpen(open);
-    this.theme({ paper: 0xf3e8cf }); this.dark(false); this.camDist = 21;
+    this.camDist = 21 * ZOOM; this.theme({ paper: 0xf3e8cf }); this.dark(false);
   }
   setOpen(open) { this.setVis(this.dyn.palisade, !open.G); this.setVis(this.dyn.rope, !!open.X); this.setVis(this.dyn.causeway, !!open.c); }
   // towns, caves and towers on the world map: two or three cut-out layers stood one behind the other
@@ -393,7 +399,7 @@ export class View {
     this.chests = {}; this.doors = {}; this.gates = {}; this.dyn.doors = {}; this.dyn.gates = {}; this.dyn.chests = {};
     // an apron of scenery round the edge so the map does not end at its last row
     const apron = { town: '"', village: '"', city: '"', temple: '"', pavilion: '~', forest: '"', desert: 's', fort: '#' }[M.theme];
-    const A = apron ? (apron === '~' ? 7 : 12) : 0, x0 = -A, z0 = -A, x1 = W + A, z1 = H + A;
+    const A = apron ? (apron === '~' ? 10 : 17) : 0, x0 = -A, z0 = -A, x1 = W + A, z1 = H + A;
     const G = {}; const solid = {};   // printed face per tile; standing blocks per tile
     const key = (x, z) => x + ',' + z;
     for (let z = z0; z < z1; z++) for (let x = x0; x < x1; x++) {
@@ -470,7 +476,7 @@ export class View {
     this.printGround(x0, z0, x1, z1, (x, z) => G[key(x, z)] || null);
     this.finishPieces();
     this.refresh(state);
-    this.camDist = M.town ? 16 : 15;
+    this.camDist = (M.town ? 16 : 15) * ZOOM;
     this.theme(theme, { dark: M.dark, lanternOn: state.lantern });
   }
   // paper, light and fog for a theme
@@ -492,9 +498,9 @@ export class View {
   }
   dark(on, lantern) {
     this.isDark = on; this.hasLantern = !!lantern; const U = this.U;
-    if (on) { U.uAmb.value.setHex(0x282830); U.uLampCol.value.setHex(0x000000); U.uLantern.value.w = lantern ? 1.5 : 0.7; U.uLanternR.value = lantern ? 8.5 : 4; }
+    if (on) { U.uAmb.value.setHex(0x282830); U.uLampCol.value.setHex(0x000000); U.uLantern.value.w = lantern ? 1.5 : 0.7; U.uLanternR.value = lantern ? 10.5 : 5; }
     else U.uLantern.value.w = 0;
-    U.uFog.value.set(on ? (this.camDist || 15) - 3 : 10, on ? (this.camDist || 15) + (lantern ? 5 : 2) : 20, on ? 1 : 0);
+    U.uFog.value.set(on ? (this.camDist || 15) - 4 : 10, on ? (this.camDist || 15) + (lantern ? 7 : 3) : 20, on ? 1 : 0);
     for (const [m, c] of this.envMats || []) m.color.setHex(c).multiplyScalar(on ? 0.06 : 1);
   }
 
@@ -528,7 +534,7 @@ export class View {
         }
         if (t !== P.tgt[i] || (entry && t)) {
           P.tgt[i] = t;
-          P.delay[i] = entry ? Math.hypot(P.cx[i] - fx, P.cz[i] - fz) * 0.022 + Math.random() * 0.05 : t ? Math.random() * 0.06 : 0;
+          P.delay[i] = entry ? Math.hypot(P.cx[i] - fx, P.cz[i] - fz) * (0.022 / ZOOM) + Math.random() * 0.05 : t ? Math.random() * 0.06 : 0;
           if (!P.act[i]) { P.act[i] = 1; P.active.push(i); }
         }
       }
@@ -550,7 +556,7 @@ export class View {
   frame(dt, focus) {
     this.time += dt; this.U.uTime.value = this.time;
     const portrait = this.aspect < 1;
-    const base = this.camDist || 15; const dist = portrait ? base * 1.15 : base, el = portrait ? 0.95 : 0.86;      // camera distance and elevation angle
+    const base = this.camDist || 15; const dist = portrait ? base * 1.05 : base, el = portrait ? 0.95 : 0.86;      // camera distance and elevation angle
     const want = this._want || (this._want = new THREE.Vector3()); want.set(focus.x, 0, focus.z);
     if (!this.camReady) { this.cam.copy(want); this.camReady = true; this.recheck = true; } else this.cam.lerp(want, Math.min(1, dt * 8));
     const c = this.camera; const fov = portrait ? 38 : 30; if (c.fov !== fov) { c.fov = fov; c.updateProjectionMatrix(); }
@@ -558,7 +564,7 @@ export class View {
     this.updatePieces(dt);
     let busy = false; for (const a of this.actors.values()) busy = a.tick(dt) || busy;
     this.settled = this.cam.distanceToSquared(want) < 1e-5 && !this.animating && !busy;   // nothing is gliding, rising or hopping
-    this.U.uSpot.value.x = this.cam.x - 3; this.U.uSpot.value.y = this.cam.z - 2;
+    this.U.uSpot.value.x = this.cam.x - 3 * ZOOM; this.U.uSpot.value.y = this.cam.z - 2 * ZOOM;
     this.U.uLantern.value.x = focus.x; this.U.uLantern.value.y = 1.4; this.U.uLantern.value.z = focus.z + 0.3;
     if (this.post) this.grade.uniforms.band.value = portrait ? 0.17 : 0.15;
   }
