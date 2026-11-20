@@ -2,17 +2,20 @@
 // order of agility (with a little luck). Everything the foe does goes through the same rules as the hero.
 // Presentation: every blow is drawn on the 160x120 stage in NES colours with whole-pixel shapes (saber arcs, sparks,
 // qi orbs, claws, jaws...), from pools that are filled once per battle so the 60 fps loop allocates nothing.
-import { ENEMIES, SKILLS, ITEMS, ART_OF } from './data.js?v=10';
-import { ENEMY_ART } from './enemy_art.js?v=10';
-import { CAST } from './people_art.js?v=10';
-import * as R from './rules.js?v=10';
-import { t, STR } from './ui.js?v=10';
-import { hex, NES } from './tiles.js?v=10';
+// The stage is a pop-up spread: layered cut-out paper scenery, the foe a die-cut card that rises on its hinge from
+// the bottom of the page (with its shadow on the floor), and the damage numbers little paper tags.
+import { ENEMIES, SKILLS, ITEMS, ART_OF } from './data.js?v=11';
+import { ENEMY_ART } from './enemy_art.js?v=11';
+import { CAST } from './people_art.js?v=11';
+import * as R from './rules.js?v=11';
+import { t, STR } from './ui.js?v=11';
+import { hex, NES } from './tiles.js?v=11';
+import { dieCut, grainCanvas } from './paper.js?v=11';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const imgs = {};
 function img(src) { if (!imgs[src]) { imgs[src] = new Image(); imgs[src].src = src; } return imgs[src]; }
-export function preloadBattleArt() { img('assets/enemies.png?v=10'); for (const c of Object.values(CAST)) img(c.portrait); }
+export function preloadBattleArt() { img('assets/enemies.png?v=11'); for (const c of Object.values(CAST)) img(c.portrait); }
 
 const SCENES = {   // backdrop strip colours (NES indexes): sky, far, near
   grass: [0x21, 0x1A, 0x0A], forest: [0x0A, 0x0B, 0x1A], hill: [0x21, 0x19, 0x09], sand: [0x31, 0x27, 0x17], swamp: [0x0C, 0x0B, 0x04],
@@ -53,6 +56,46 @@ function txt(s, c) {
   TXT.set(key, cv); return cv;
 }
 
+// plain ink digits for the paper tags (no outline)
+const INK = new Map();
+function ink(s, col) {
+  const key = s + '/' + col; let cv = INK.get(key); if (cv) return cv;
+  if (!mctx) { mctx = document.createElement('canvas').getContext('2d'); mctx.font = '12px Cubic11, monospace'; }
+  const W = Math.ceil(mctx.measureText(s).width) + 2, H = 14;
+  cv = document.createElement('canvas'); cv.width = W; cv.height = H; const g = cv.getContext('2d');
+  g.font = '12px Cubic11, monospace'; g.textBaseline = 'top'; g.fillStyle = col; g.fillText(s, 1, 1);
+  try { const id = g.getImageData(0, 0, W, H), d = id.data; for (let i = 3; i < d.length; i += 4) d[i] = d[i] >= 110 ? 255 : 0; g.putImageData(id, 0, 0); } catch (e) {}
+  INK.set(key, cv); return cv;
+}
+const INKOF = { 0x30: '#2b2118', 0x28: '#b5361f', 0x27: '#c8401c', 0x2A: '#2f7a2a', 0x10: '#6e604c', 0x00: '#6e604c' };
+// the backdrop: cut-out paper layers (sky, far hills, near hills) over the floor of the page, drawn once a battle
+const mixc = (a, b, f) => { const A = NES[a], r = (A >> 16 & 255) * (1 - f) + (b >> 16 & 255) * f, g = (A >> 8 & 255) * (1 - f) + (b >> 8 & 255) * f, bl = (A & 255) * (1 - f) + (b & 255) * f; return `rgb(${r | 0},${g | 0},${bl | 0})`; };
+let GRAIN = null;
+function scenery(scene) {
+  const c = document.createElement('canvas'); c.width = 480; c.height = 360; const g = c.getContext('2d'); g.setTransform(3, 0, 0, 3, 0, 0);
+  const PAP = 0xf3e8cf;
+  g.fillStyle = mixc(scene[0], PAP, 0.42); g.fillRect(0, 0, 160, 60);
+  const ridge = (y0, a1, f1, a2, f2, ph, col, shadow) => {
+    const path = () => { g.beginPath(); g.moveTo(0, 70); for (let x = 0; x <= 160; x += 2) g.lineTo(x, y0 + Math.round(Math.sin(x * f1 + ph) * a1 + Math.sin(x * f2 + ph * 2) * a2)); g.lineTo(160, 70); g.closePath(); };
+    g.save(); g.translate(1.5, 1.5); g.fillStyle = shadow; path(); g.fill(); g.restore();      // the layer's shadow on the one behind
+    g.fillStyle = '#fffaf0'; g.save(); g.translate(0, -1); path(); g.fill(); g.restore();      // its white cut edge
+    g.fillStyle = col; path(); g.fill();
+  };
+  ridge(26, 5, 0.07, 2, 0.19, 0.3, mixc(scene[1], PAP, 0.3), 'rgba(40,25,10,0.25)');
+  ridge(36, 3, 0.11, 2, 0.23, 1.7, mixc(scene[2], PAP, 0.22), 'rgba(40,25,10,0.3)');
+  // the floor of the page the foe stands on: a darker card, so the white sparks still show
+  g.fillStyle = 'rgba(40,25,10,0.35)'; g.fillRect(0, 47, 160, 2);
+  g.fillStyle = mixc(scene[2], 0x2a2018, 0.62); g.fillRect(0, 48, 160, 72);
+  g.fillStyle = '#fffaf0'; g.fillRect(0, 47, 160, 1);
+  try {   // paper grain over everything
+    if (!GRAIN) GRAIN = grainCanvas(128, 31);
+    g.setTransform(1, 0, 0, 1, 0, 0); g.globalCompositeOperation = 'multiply'; g.globalAlpha = 0.55;
+    for (let y = 0; y < 360; y += 128) for (let x = 0; x < 480; x += 128) g.drawImage(GRAIN, x, y);
+    g.globalCompositeOperation = 'source-over'; g.globalAlpha = 1;
+  } catch (e) {}
+  return c;
+}
+
 export async function battle(G, foeId, opts = {}) {
   const ui = G.ui, au = G.audio, h = G.hero, E = ENEMIES[foeId];
   (G.stats.seen = G.stats.seen || {})[foeId] = 1;   // for the bestiary
@@ -81,25 +124,29 @@ export async function battle(G, foeId, opts = {}) {
   const scene = SCENES[opts.scene] || SCENES.grass;
   let art = null, src = null;
   if (E.por) { src = img(CAST[E.por].portrait); art = { x: 0, y: 0, w: 48, h: 56, por: 1 }; }
-  else { src = img('assets/enemies.png?v=10'); art = ENEMY_ART[ART_OF(foeId)]; }
+  else { src = img('assets/enemies.png?v=11'); art = ENEMY_ART[ART_OF(foeId)]; }
   // whole device pixels per art pixel (k/3 on the 160x120 stage); bigger pictures step down so they always fit
   // a third larger than 1:1 on the 160x120 stage, so the foe fills about two thirds of the black area
   const k = art.por ? 4 : Math.max(3, Math.min(4, Math.floor(276 / art.h), Math.floor(468 / art.w)));
   const W0 = art.w * k / 3, H0 = art.h * k / 3;
   const FCY = Math.max(28, 73 - H0 / 2) + H0 / 2, FCX = 80, FTOP = FCY - H0 / 2;   // the foe's centre and top on the stage
   const sx0 = art.por ? 0 : art.x, sy0 = art.por ? 0 : art.y;
-  let sil = null, silTried = false;   // the foe as a white silhouette (hit flash)
+  // the foe as a die-cut card (its art on a white border), a white silhouette of it (hit flash) and its shadow
+  const BP = 3, CW = art.w + BP * 2, CH = art.h + BP * 2;
+  let card = null, sil = null, shad = null, silTried = false;
   function makeSil() {
     silTried = true;
     try {
-      const c = document.createElement('canvas'); c.width = art.w; c.height = art.h; const g = c.getContext('2d');
-      g.drawImage(src, sx0, sy0, art.w, art.h, 0, 0, art.w, art.h);
-      const id = g.getImageData(0, 0, art.w, art.h), d = id.data;
-      for (let i = 0; i < d.length; i += 4) { if (d[i + 3] > 0 && d[i] + d[i + 1] + d[i + 2] > 60) { d[i] = d[i + 1] = d[i + 2] = 252; d[i + 3] = 255; } else d[i + 3] = 0; }
-      g.putImageData(id, 0, 0); sil = c;
-    } catch (e) { sil = null; }
+      const a = document.createElement('canvas'); a.width = art.w; a.height = art.h; a.getContext('2d').drawImage(src, sx0, sy0, art.w, art.h, 0, 0, art.w, art.h);
+      card = dieCut(a, 1, BP, 2.2, '#fffaf0', '#a89a80');
+      const mk = (f) => { const c = document.createElement('canvas'); c.width = CW; c.height = CH; const g = c.getContext('2d'); g.drawImage(card, 0, 0); g.globalCompositeOperation = 'source-in'; g.fillStyle = f; g.fillRect(0, 0, CW, CH); return c; };
+      sil = mk('#fcfcfc'); shad = mk('rgba(30,18,6,0.42)');
+    } catch (e) { card = null; sil = null; shad = null; }
   }
-  const NSTRIP = Math.ceil(art.w / 2), thr = new Float32Array(NSTRIP);
+  const bg = scenery(SCENES[opts.scene] || SCENES.grass);
+  const NSTRIP = Math.ceil(CW / 2), thr = new Float32Array(NSTRIP);
+  const riseAt = 0.32; let riseT0 = -1;   // the card rises on its hinge with a little overshoot
+  const riseOf = (q) => { if (q <= 0) return 0.02; if (q >= 1) return 1; const c1 = 2.2, c3 = c1 + 1; return 1 + c3 * Math.pow(q - 1, 3) + c1 * Math.pow(q - 1, 2); };
 
   // ---------------------------------------------------------------- effect pools (filled once)
   // fx: foe picture state. white = hit-stop silhouette, blink = white/normal flicker, kx/ky = knock-back,
@@ -124,11 +171,11 @@ export async function battle(G, foeId, opts = {}) {
     if (type === 'bolt') { let x = e.x1 + (Math.random() - 0.5) * 30; for (let i = 0; i < 12; i++) { const f = i / 11; e.pts[i * 2] = i === 11 ? e.x1 : x; e.pts[i * 2 + 1] = f * e.y1; x += (Math.random() - 0.5) * 22; x += (e.x1 - x) * 0.25; } }
     return e;
   }
-  const NT = 6, TX = []; for (let i = 0; i < NT; i++) TX.push({ on: false, a: null, b: null, x: 0, y: 0, t: 0, sc: 1 });
+  const NT = 6, TX = []; for (let i = 0; i < NT; i++) TX.push({ on: false, a: null, b: null, x: 0, y: 0, t: 0, sc: 1, crit: false });
   function pop(s, c, x = FCX, y = FCY - 6, sc = 4 / 3, c2 = -1) {   // a damage number over the foe
     if (fast) return;
     let o = TX[0]; for (const q of TX) { if (!q.on) { o = q; break; } if (q.t > o.t) o = q; }
-    o.on = true; o.a = txt(String(s), c); o.b = c2 >= 0 ? txt(String(s), c2) : o.a; o.x = x; o.y = y; o.t = 0; o.sc = sc;
+    o.on = true; o.a = ink(String(s), INKOF[c] || '#2b2118'); o.b = c2 >= 0 ? ink(String(s), INKOF[c2] || '#b5361f') : o.a; o.x = x; o.y = y; o.t = 0; o.sc = sc * 0.85; o.crit = c === 0x28;
   }
 
   // ---------------------------------------------------------------- pixel drawing helpers (whole stage pixels)
@@ -151,21 +198,29 @@ export async function battle(G, foeId, opts = {}) {
     if (fx.lunge > 0) { const u = fx.lunge; if (u > 0.30) dy = -2; else if (u > 0.08) { kk = k + 1; dy = 5; } else dy = 1; }
     const w = art.w * kk / 3, hh = art.h * kk / 3, sp = kk / 3;
     const dg = fx.dodge > 0 ? fx.ddir * 18 * (fx.dodge > 0.34 ? (0.42 - fx.dodge) / 0.08 : fx.dodge > 0.14 ? 1 : fx.dodge / 0.14) : 0;   // a sidestep: out fast, hold, back
-    const x0 = R3(FCX - w / 2 + fx.kx + Math.round(dg) + (fx.shake > 0 ? Math.random() * 4 - 2 : 0)), y0 = R3(FCY - hh / 2 + dy + fx.ky);
+    const x0 = R3(FCX - w / 2 + fx.kx + Math.round(dg) + (fx.shake > 0 ? Math.random() * 4 - 2 : 0)) - BP * sp, y0 = R3(FCY - hh / 2 + dy + fx.ky) - BP * sp;
     const white = fx.white > 0 || (fx.blink > 0 && blinkOn(fx.blink, 15));
-    if (white && !sil) return;   // no silhouette available: the old blink
-    const S = white ? sil : src, sx = white ? 0 : sx0, sy = white ? 0 : sy0;
+    if (!card) return;
+    const S = white ? sil : card, cwid = CW * sp, chgt = CH * sp;
+    // the hinge at the card's foot: it rises from flat with an overshoot
+    if (riseT0 < 0) riseT0 = T;
+    const rs = fast ? 1 : riseOf((T - riseT0 - riseAt) / 0.42), baseX = x0 + cwid / 2, baseY = y0 + chgt - BP * sp;
     cx.globalAlpha = fx.alpha;
-    if (fx.diss <= 0) cx.drawImage(S, sx, sy, art.w, art.h, x0, y0, w, hh);
+    if (fx.diss <= 0 && shad) {   // the shadow falls back and to the right on the floor
+      cx.save(); cx.translate(baseX, baseY); cx.transform(1, 0, -0.5 * rs, 0.32 * rs, 0, 0); cx.drawImage(shad, x0 - baseX, y0 - baseY, cwid, chgt); cx.restore();
+    }
+    cx.save(); cx.translate(0, baseY); cx.scale(1, rs); cx.translate(0, -baseY);
+    if (fx.diss <= 0) cx.drawImage(S, 0, 0, CW, CH, x0, y0, cwid, chgt);
     else {
-      // pixel-column dissolve: two-pixel strips burn away from the top at their own pace, with a white burning edge
+      // the card burns away: two-pixel strips from the top at their own pace, with a glowing edge
       for (let i = 0; i < NSTRIP; i++) {
         const p = Math.min(1, Math.max(0, fx.diss * 1.7 - thr[i] * 0.7)); if (p >= 1) continue;
-        const top = Math.floor(art.h * p), cw = Math.min(2, art.w - i * 2), X = x0 + i * 2 * sp, Y = y0 + top * sp;
-        cx.drawImage(S, sx + i * 2, sy + top, cw, art.h - top, X, Y, cw * sp, (art.h - top) * sp);
-        if (p > 0) { cx.fillStyle = COLS[(i + Math.floor(T * 20)) % 3 ? 0x30 : 0x38]; cx.fillRect(X, Y, cw * sp, sp); if (Math.random() < 0.05) part(X + sp, Y, (Math.random() - 0.5) * 20, -20 - Math.random() * 30, 0.35, SPARK[i & 3], 1, 0, 1); }
+        const top = Math.floor(CH * p), cw = Math.min(2, CW - i * 2), X = x0 + i * 2 * sp, Y = y0 + top * sp;
+        cx.drawImage(S, i * 2, top, cw, CH - top, X, Y, cw * sp, (CH - top) * sp);
+        if (p > 0) { cx.fillStyle = COLS[(i + Math.floor(T * 20)) % 3 ? 0x27 : 0x38]; cx.fillRect(X, Y, cw * sp, sp); if (Math.random() < 0.05) part(X + sp, Y, (Math.random() - 0.5) * 20, -20 - Math.random() * 30, 0.35, SPARK[i & 3], 1, 0, 1); }
       }
     }
+    cx.restore();
     cx.globalAlpha = 1;
   }
   function marks() {   // lasting states over the foe
@@ -325,12 +380,7 @@ export async function battle(G, foeId, opts = {}) {
   }
   function draw(now) {
     const dt = Math.min(0.05, (now - last) / 1000); last = now; T += dt;
-    cx.fillStyle = '#000'; cx.fillRect(0, 0, 160, 120);
-    // backdrop strip: sky band, a far ridge and near ground, all in NES colours, above the foe only
-    cx.fillStyle = COLS[scene[0]]; cx.fillRect(0, 0, 160, 26);
-    cx.fillStyle = COLS[scene[1]]; for (let x = 0; x < 160; x += 2) { const y = 14 + Math.round(Math.sin(x * 0.07) * 4 + Math.sin(x * 0.19) * 2); cx.fillRect(x, y, 2, 26 - y); }
-    cx.fillStyle = COLS[scene[2]]; for (let x = 0; x < 160; x += 2) { const y = 20 + Math.round(Math.sin(x * 0.11 + 1) * 2); cx.fillRect(x, y, 2, 26 - y); }
-    cx.fillStyle = '#000'; cx.fillRect(0, 26, 160, 2);
+    cx.drawImage(bg, 0, 0, 160, 120);   // the paper scenery (drawn once)
     if (src && src.complete && src.naturalWidth && art && fx.alpha > 0) { if (!silTried) makeSil(); drawFoe(); }
     marks();
     for (let i = 0; i < NF; i++) if (F[i].on) drawFx(F[i], dt);
@@ -348,8 +398,15 @@ export async function battle(G, foeId, opts = {}) {
       const o = TX[i]; if (!o.on) continue; o.t += dt; const tt = o.t; if (tt > 0.95) { o.on = false; continue; }
       const dy = tt < 0.07 ? -7 * tt / 0.07 : tt < 0.15 ? -7 + 6 * (tt - 0.07) / 0.08 : tt < 0.55 ? -1 : -1 - (tt - 0.55) * 22;
       if (tt > 0.7 && !blinkOn(tt, 15)) continue;
-      const s = (o.a !== o.b && blinkOn(tt, 15)) ? o.b : o.a, w = s.width * o.sc, hh = s.height * o.sc;
-      cx.drawImage(s, R3(Math.max(0, Math.min(160 - w, o.x - w / 2))), R3(Math.max(0, o.y + dy - hh / 2)), w, hh);
+      // a paper tag with the number in ink, swinging a little on its string
+      const s = (o.a !== o.b && blinkOn(tt, 15)) ? o.b : o.a, w = s.width * o.sc, hh = s.height * o.sc, tw = w + 7, th = hh + 2;
+      const X = Math.max(1, Math.min(159 - tw, o.x - tw / 2)), Y = Math.max(1, o.y + dy - th / 2);
+      cx.save(); cx.translate(X + 2, Y + th / 2); cx.rotate(Math.sin(tt * 9) * 0.12 * (1 - Math.min(1, tt * 1.5)) - 0.05); cx.translate(-X - 2, -Y - th / 2);
+      cx.fillStyle = 'rgba(30,18,6,0.35)'; cx.fillRect(X + 1, Y + 1, tw, th);
+      cx.fillStyle = '#5a4630'; cx.fillRect(X - 0.5, Y - 0.5, tw + 1, th + 1); cx.fillStyle = o.crit ? '#ffe9b0' : '#fffaf0'; cx.fillRect(X, Y, tw, th);
+      cx.fillStyle = '#5a4630'; cx.fillRect(X + 1.5, Y + th / 2 - 0.75, 1.5, 1.5);
+      cx.drawImage(s, R3(X + 5), R3(Y + 1), w, hh);
+      cx.restore();
     }
     if (fx.scr > 0) { cx.fillStyle = COLS[fx.scrC]; cx.fillRect(0, 0, 160, 120); fx.scr -= dt; }
     // the foe's own timers (hit-stop holds the knock-back until it ends)

@@ -1,47 +1,40 @@
-// The HD-2D view: the map as pixel-textured 3D blocks under soft light, seen through a tilted perspective camera with
-// tilt-shift depth of field, bloom and a light colour grade. People and props are 8-bit billboards.
+// The pop-up book view. The map is the open double page of a book lying on a wooden table: the ground tiles are
+// printed flat on cream paper (one baked texture, paper grain, a soft gutter shadow down the middle, page edges and
+// the cover round the border). Everything that stands up is a die-cut cardboard pop-up - trees, rocks, walls,
+// houses (facade + roof flap), mountains, people - with a white cut border, a visible card thickness, a little tab
+// at the hinge and a soft shadow on the page. Pieces near the edge of the view unfold up from flat as the camera
+// comes near and fold down when it leaves; people hop on their tab when they walk. Map changes turn the page.
+//
+// Speed: all the pop-ups of a map are ONE instanced draw (plus one for their card edges and one for their
+// shadows), from ONE texture atlas; the ground is one quad; no shadow maps, no lights (the paper shading is done
+// in the shaders), and one full-screen pass (a light tilt-shift + the colour grade) instead of bloom + two blurs.
 import * as THREE from 'three';
 import { EffectComposer } from '../lib/addons/EffectComposer.js';
 import { RenderPass } from '../lib/addons/RenderPass.js';
-import { UnrealBloomPass } from '../lib/addons/UnrealBloomPass.js';
 import { ShaderPass } from '../lib/addons/ShaderPass.js';
-import { tex, spr } from './tiles.js?v=10';
-import { TILES } from './maps.js?v=10';
+import { tex, spr, FACES, SPR, POP } from './tiles.js?v=11';
+import { TILES } from './maps.js?v=11';
+import { grainCanvas, woodCanvas, edgeCanvas, dieCut } from './paper.js?v=11';
 
-const TiltShift = {
-  uniforms: { tDiffuse: { value: null }, res: { value: new THREE.Vector2(1, 1) }, dir: { value: new THREE.Vector2(1, 0) }, focus: { value: 0.5 }, band: { value: 0.18 }, amount: { value: 2.2 } },
-  vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
-  fragmentShader: `uniform sampler2D tDiffuse; uniform vec2 res, dir; uniform float focus, band, amount; varying vec2 vUv;
-    void main(){
-      float d = max(0.0, abs(vUv.y - focus) - band);
-      float r = clamp(d * 3.5, 0.0, 1.0) * amount;
-      vec2 st = dir / res * r;
-      vec4 c = texture2D(tDiffuse, vUv) * 0.2270270270;
-      c += texture2D(tDiffuse, vUv + st * 1.3846153846) * 0.3162162162;
-      c += texture2D(tDiffuse, vUv - st * 1.3846153846) * 0.3162162162;
-      c += texture2D(tDiffuse, vUv + st * 3.2307692308) * 0.0702702703;
-      c += texture2D(tDiffuse, vUv - st * 3.2307692308) * 0.0702702703;
-      gl_FragColor = c;
-    }`,
-};
-// the last pass does three jobs in one: the vertical half of the tilt-shift blur, the linear -> sRGB output step and
-// the colour grade (tint, vignette, fades and flashes) - one full-screen pass instead of three
+// the one full-screen pass: a light depth-of-field blur away from the focus band (one pass, 9 taps where blurred,
+// 1 tap in focus), the linear -> sRGB step and the grade (warm tint, vignette, fades and flashes)
 const Final = {
-  uniforms: { tDiffuse: { value: null }, res: { value: new THREE.Vector2(1, 1) }, dir: { value: new THREE.Vector2(0, 1) }, focus: { value: 0.5 }, band: { value: 0.18 }, amount: { value: 2.2 },
-    vig: { value: 0.5 }, fade: { value: 0 }, flash: { value: 0 }, tint: { value: new THREE.Vector3(1.03, 1.0, 0.95) } },
-  vertexShader: TiltShift.vertexShader,
-  fragmentShader: `uniform sampler2D tDiffuse; uniform vec2 res, dir; uniform float focus, band, amount, vig, fade, flash; uniform vec3 tint; varying vec2 vUv;
+  uniforms: { tDiffuse: { value: null }, res: { value: new THREE.Vector2(1, 1) }, focus: { value: 0.52 }, band: { value: 0.16 }, amount: { value: 2.4 },
+    vig: { value: 0.55 }, fade: { value: 0 }, flash: { value: 0 }, tint: { value: new THREE.Vector3(1.03, 1.0, 0.94) } },
+  vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
+  fragmentShader: `uniform sampler2D tDiffuse; uniform vec2 res; uniform float focus, band, amount, vig, fade, flash; uniform vec3 tint; varying vec2 vUv;
     vec3 toSRGB(vec3 c) { c = max(c, 0.0); return mix(c * 12.92, 1.055 * pow(c, vec3(1.0 / 2.4)) - 0.055, step(0.0031308, c)); }
     void main(){
       float d = max(0.0, abs(vUv.y - focus) - band);
-      vec2 st = dir / res * (clamp(d * 3.5, 0.0, 1.0) * amount);
-      vec4 c = texture2D(tDiffuse, vUv) * 0.2270270270;
-      c += texture2D(tDiffuse, vUv + st * 1.3846153846) * 0.3162162162;
-      c += texture2D(tDiffuse, vUv - st * 1.3846153846) * 0.3162162162;
-      c += texture2D(tDiffuse, vUv + st * 3.2307692308) * 0.0702702703;
-      c += texture2D(tDiffuse, vUv - st * 3.2307692308) * 0.0702702703;
-      c.rgb = toSRGB(c.rgb);
-      c.rgb *= tint;
+      float r = clamp(d * 3.5, 0.0, 1.0) * amount;
+      vec4 c = texture2D(tDiffuse, vUv);
+      if (r > 0.05) {
+        vec2 o = r / res, p = o * 0.7;
+        c = c * 0.2
+          + (texture2D(tDiffuse, vUv + vec2(o.x, 0.0)) + texture2D(tDiffuse, vUv - vec2(o.x, 0.0)) + texture2D(tDiffuse, vUv + vec2(0.0, o.y)) + texture2D(tDiffuse, vUv - vec2(0.0, o.y))) * 0.12
+          + (texture2D(tDiffuse, vUv + p) + texture2D(tDiffuse, vUv - p) + texture2D(tDiffuse, vUv + vec2(p.x, -p.y)) + texture2D(tDiffuse, vUv + vec2(-p.x, p.y))) * 0.08;
+      }
+      c.rgb = toSRGB(c.rgb) * tint;
       vec2 q = vUv - 0.5; c.rgb *= 1.0 - dot(q, q) * vig * 1.6;
       c.rgb = mix(c.rgb, vec3(1.0), flash);
       c.rgb *= 1.0 - fade;
@@ -49,20 +42,132 @@ const Final = {
     }`,
 };
 
-function texOf(canvas, repeat, mip) {
-  const t = new THREE.CanvasTexture(canvas); t.magFilter = THREE.NearestFilter; t.colorSpace = THREE.SRGBColorSpace;
-  if (mip) { t.minFilter = THREE.NearestMipmapLinearFilter; t.generateMipmaps = true; } else { t.minFilter = THREE.NearestFilter; t.generateMipmaps = false; }
-  if (repeat) { t.wrapS = t.wrapT = THREE.RepeatWrapping; }
+// ---------------------------------------------------------------- shaders of the paper world
+const PAPER_GLSL = `
+  uniform vec3 uLampDir, uLampCol, uAmb, uLanternCol, uFog, uFogCol;
+  uniform vec4 uLantern; uniform float uLanternR; uniform vec3 uSpot;
+  bool has(float f, float bit) { return mod(floor(f / bit + 0.001), 2.0) > 0.5; }
+  vec3 shade(vec3 col, vec3 N, vec3 W, float depth) {
+    vec3 L = uAmb + uLampCol * max(dot(N, uLampDir), 0.0);
+    vec2 sd = (W.xz - uSpot.xy) * vec2(1.0, 1.35); L *= 1.0 + uSpot.z * (exp(-dot(sd, sd) * 0.012) - 0.55);   // the desk lamp's pool of light
+    if (uLantern.w > 0.0) { float a = clamp(1.0 - distance(W, uLantern.xyz) / uLanternR, 0.0, 1.0); L += uLanternCol * uLantern.w * a * a; }
+    col *= L;
+    return mix(col, uFogCol, uFog.z * smoothstep(uFog.x, uFog.y, depth));
+  }`;
+const TEXGRAD = `vec4 texG(sampler2D s, vec2 uv, vec2 gx, vec2 gy) {
+  #if __VERSION__ >= 300
+    return textureGrad(s, uv, gx, gy);
+  #else
+    return texture2D(s, uv);
+  #endif
+  }`;
+const GROUND_VS = `varying vec3 vW; varying float vDepth;
+  void main(){ vec4 w = modelMatrix * vec4(position, 1.0); vW = w.xyz; vec4 mv = viewMatrix * w; vDepth = -mv.z; gl_Position = projectionMatrix * mv; }`;
+const GROUND_FS = `${PAPER_GLSL}
+  uniform sampler2D uMap, uGrain; uniform vec4 uPrint, uPage; uniform float uGutter; uniform vec3 uPaper, uInk;
+  varying vec3 vW; varying float vDepth;
+  void main(){
+    vec2 q = (vW.xz - uPrint.xy) / (uPrint.zw - uPrint.xy);
+    vec3 col = uPaper;
+    if (q.x >= 0.0 && q.y >= 0.0 && q.x <= 1.0 && q.y <= 1.0) { vec4 t = texture2D(uMap, q); vec3 ink = mix(t.rgb, vec3(dot(t.rgb, vec3(0.3, 0.55, 0.15))), 0.22) * uInk; col = mix(col, ink * mix(vec3(1.0), uPaper, 0.35), t.a * 0.86); }
+    float gr = texture2D(uGrain, vW.xz * 0.19).r; col *= 0.8 + 0.2 * gr;
+    float g = vW.x - uGutter, ag = abs(g) - 1.7;
+    col *= 1.0 - 0.34 * exp(-g * g * 1.1) + 0.05 * exp(-ag * ag * 0.9);       // the gutter: shadow, then the page's lift
+    vec2 e = min(vW.xz - uPage.xy, uPage.zw - vW.xz);
+    col *= 0.88 + 0.12 * smoothstep(0.0, 1.4, min(e.x, e.y));                  // the page edges curl down a little
+    gl_FragColor = vec4(shade(col, vec3(0.0, 1.0, 0.0), vW, vDepth), 1.0);
+    #include <colorspace_fragment>
+  }`;
+// a card: part 0 = the face, 1 = the folded tab at its foot, 2 = the lid / roof flap hinged at its top
+const CARD_VS = `${PAPER_GLSL}
+  attribute vec4 iPos; attribute vec4 iSize; attribute vec4 iUV; attribute vec4 iUV2; attribute vec4 iMisc; attribute vec2 iRoll; attribute float iRise;
+  uniform float uTime;
+  varying vec2 vLoc, vRep, vSz; varying vec4 vRect; varying vec3 vN, vW; varying float vDepth, vPart, vFlags;
+  void main(){
+    float part = position.z, W = iSize.x, H = iSize.y, D = iSize.z, LA = iSize.w, b = iPos.w, fl = iMisc.y;
+    if (W == 0.0 || (part > 0.5 && part < 1.5 && has(fl, 32.0)) || (part > 1.5 && D == 0.0)) { gl_Position = vec4(0.0, 0.0, 2.0, 1.0); return; }
+    float th = (1.0 - iRise) * 1.5707963;
+    vec3 p, n; vRect = iUV; vRep = vec2(iMisc.z, 1.0); vSz = vec2(abs(W), H);
+    if (part < 0.5) { p = vec3(position.x * W, position.y * H - b, 0.0); n = vec3(0.0, 0.0, sign(W)); }
+    else if (part < 1.5) { p = vec3(position.x * abs(W) * 0.5, 0.0035, position.y * 0.09); n = vec3(0.0, 1.0, 0.0); }
+    else { float a = LA * clamp(iRise, 0.0, 1.0); p = vec3(position.x * W, H - b, 0.0) + vec3(0.0, cos(a), -sin(a)) * (position.y * D); n = vec3(0.0, sin(a), cos(a)) * sign(W); vRect = iUV2; vRep = vec2(iMisc.z, max(1.0, floor(D + 0.5))); vSz = vec2(abs(W), D); }
+  #ifdef EDGE
+    if (part > 0.5 && part < 1.5) { gl_Position = vec4(0.0, 0.0, 2.0, 1.0); return; }
+    p -= n * sign(W) * 0.03;
+  #endif
+    if (part < 0.5 || part > 1.5) {
+      float c = cos(th), s = sin(th);
+      p = vec3(p.x, p.y * c + p.z * s, -p.y * s + p.z * c); n = vec3(n.x, n.y * c + n.z * s, -n.y * s + n.z * c);
+      if (iRoll.x != 0.0) { float c2 = cos(iRoll.x), s2 = sin(iRoll.x); p.xy = vec2(p.x * c2 - p.y * s2, p.x * s2 + p.y * c2); }
+    }
+    if (has(fl, 1.0)) { float t = uTime * 1.6 + iMisc.w; p.y += 0.03 + sin(t) * 0.03; p.x += sin(t * 0.55) * 0.05; }
+    float cy = cos(iMisc.x), sy = sin(iMisc.x);
+    p = vec3(p.x * cy + p.z * sy, p.y, -p.x * sy + p.z * cy); n = vec3(n.x * cy + n.z * sy, n.y, -n.x * sy + n.z * cy);
+    vec4 w = vec4(p + iPos.xyz, 1.0);
+    vW = w.xyz; vN = n; vLoc = vec2(position.x + 0.5, position.y); vPart = part; vFlags = fl;
+    vec4 mv = viewMatrix * w; vDepth = -mv.z; gl_Position = projectionMatrix * mv;
+  }`;
+const CARD_FS = `${PAPER_GLSL}
+  ${TEXGRAD}
+  uniform sampler2D uAtlas, uGrain; uniform vec3 uBorder, uCut, uPaper, uEdge; uniform float uTime;
+  varying vec2 vLoc, vRep, vSz; varying vec4 vRect; varying vec3 vN, vW; varying float vDepth, vPart, vFlags;
+  void main(){
+    vec3 col;
+    if (vPart > 0.5 && vPart < 1.5) col = uPaper * (vLoc.y < 0.3 ? 0.78 : 0.94);
+    else {
+      vec2 r = vLoc * vRep, f = fract(r);
+      vec4 t = texG(uAtlas, vRect.xy + vec2(f.x, 1.0 - f.y) * vRect.zw, dFdx(r) * vRect.zw, dFdy(r) * vRect.zw);
+      if (has(vFlags, 8.0)) {
+        vec2 dd = min(vLoc, 1.0 - vLoc) * vSz; float e = min(dd.x, (1.0 - vLoc.y) * vSz.y);
+        bool rim = vPart > 1.5 ? !has(vFlags, 128.0) : !has(vFlags, 64.0);
+        if (rim && e < 0.014) col = uCut; else if (rim && e < 0.05) col = uBorder; else { if (t.a < 0.5) discard; col = t.rgb; }
+      } else { if (t.a < 0.5) discard; col = t.rgb; }
+    }
+  #ifdef EDGE
+    col = uEdge;
+  #endif
+    col *= 0.9 + 0.1 * texture2D(uGrain, vW.xy * 0.37 + vW.z * 0.21).r;
+    if (has(vFlags, 2.0)) gl_FragColor = vec4(col * (1.2 + 0.18 * sin(uTime * 13.0 + vW.x * 5.0)), 1.0);
+    else gl_FragColor = vec4(shade(col, normalize(vN) * (gl_FrontFacing ? 1.0 : -1.0), vW, vDepth), 1.0);
+    #include <colorspace_fragment>
+  }`;
+const SHADOW_VS = `${PAPER_GLSL}
+  attribute vec4 iPos; attribute vec4 iSize; attribute vec4 iMisc; attribute float iRise;
+  uniform vec3 uShadowDir; varying vec2 vQ; varying float vA;
+  void main(){
+    float W = abs(iSize.x), fl = iMisc.y;
+    if (W == 0.0 || iRise < 0.02 || has(fl, 1.0) || has(fl, 4.0) || has(fl, 16.0)) { gl_Position = vec4(0.0, 0.0, 2.0, 1.0); return; }
+    float cy = cos(iMisc.x), sy = sin(iMisc.x); vec3 ax = vec3(cy, 0.0, -sy);
+    float len = (iSize.y * 0.5 + iSize.z * 0.35) * clamp(iRise, 0.0, 1.15);
+    vec3 p = vec3(iPos.x, 0.005, iPos.z) + ax * position.x * W * 1.06 + uShadowDir * position.y * len;
+    vQ = vec2(position.x * 2.0, position.y); vA = clamp(iRise, 0.0, 1.0);
+    gl_Position = projectionMatrix * viewMatrix * vec4(p, 1.0);
+  }`;
+const SHADOW_FS = `uniform float uShadowA; uniform vec3 uShadowCol; varying vec2 vQ; varying float vA;
+  void main(){
+    float side = 1.0 - smoothstep(0.5, 1.0, abs(vQ.x));
+    float a = side * vA * (pow(1.0 - vQ.y, 1.5) * uShadowA + (1.0 - smoothstep(0.0, 0.08, vQ.y)) * 0.22);
+    gl_FragColor = vec4(uShadowCol, a);
+    #include <colorspace_fragment>
+  }`;
+
+const WAVE = 1, GLOW = 2, FLAT = 4, RECT = 8, NOSHADOW = 16, NOTAB = 32, NORIM = 64, NOLIDRIM = 128;
+const STIFF = 260, DAMP = 18;
+
+function canvasOf(w, h) { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; }
+function texOf(canvas, { repeat = false, mip = true, nearest = true, flip = false } = {}) {
+  const t = new THREE.CanvasTexture(canvas); t.colorSpace = THREE.SRGBColorSpace; t.flipY = flip;
+  t.magFilter = nearest ? THREE.NearestFilter : THREE.LinearFilter;
+  t.minFilter = mip ? THREE.LinearMipmapLinearFilter : (nearest ? THREE.NearestFilter : THREE.LinearFilter); t.generateMipmaps = mip;
+  if (repeat) t.wrapS = t.wrapT = THREE.RepeatWrapping;
   return t;
 }
-const T = {}; const tx = (name) => T[name] || (T[name] = texOf(tex(name), false, true));
-const S = {}; const sx = (name) => S[name] || (S[name] = texOf(spr(name)));
 
 // ---------------------------------------------------------------- quality
 export function pickQuality() {
   let q = 'high';
   try { const s = localStorage.getItem('lq_quality'); if (s) return s; } catch (e) {}
-  // phones and tablets: post effects but no shadow maps; a frame-rate watchdog in main.js drops the post effects if slow
+  // phones and tablets: the one post pass but a lower resolution; a frame-rate watchdog in main.js steps down further
   const touch = (navigator.maxTouchPoints || 0) > 0 || 'ontouchstart' in window, mem = navigator.deviceMemory || 4;
   if (touch && mem <= 2) q = 'low'; else if (touch) q = 'medium';
   return q;
@@ -73,208 +178,211 @@ export class View {
     this.canvas = canvas; this.quality = quality;
     const r = this.renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance' });
     canvas.addEventListener('webglcontextlost', (e) => e.preventDefault());
-    r.outputColorSpace = THREE.SRGBColorSpace; r.toneMapping = THREE.NoToneMapping;
-    r.shadowMap.enabled = quality === 'high'; r.shadowMap.type = THREE.PCFSoftShadowMap; r.shadowMap.autoUpdate = false;   // redrawn only when the sun moves or the map changes
-    this.scene = new THREE.Scene(); this.scene.background = new THREE.Color(0x0d0d1a);
-    this.camera = new THREE.PerspectiveCamera(30, 16 / 9, 0.5, 120);
-    this.hemi = new THREE.HemisphereLight(0xfff4e0, 0x404a60, 0.95); this.scene.add(this.hemi);
-    this.sun = new THREE.DirectionalLight(0xfff0d8, 0.85); this.sun.castShadow = quality === 'high';
-    this.sun.shadow.mapSize.set(2048, 2048); const sc = this.sun.shadow.camera; sc.left = -16; sc.right = 16; sc.top = 16; sc.bottom = -16; sc.near = 1; sc.far = 60; this.sun.shadow.bias = -0.0015; this.sun.shadow.normalBias = 0.02;
-    this.scene.add(this.sun); this.scene.add(this.sun.target);
-    this.lantern = new THREE.PointLight(0xffd8a0, 0, 9, 1); this.scene.add(this.lantern);
+    r.outputColorSpace = THREE.SRGBColorSpace; r.toneMapping = THREE.NoToneMapping; r.shadowMap.enabled = false;
+    this.scene = new THREE.Scene(); this.scene.background = new THREE.Color(0x24160c);
+    this.camera = new THREE.PerspectiveCamera(30, 16 / 9, 0.5, 140);
+    const C = (h) => new THREE.Color(h);
+    this.grainTex = texOf(grainCanvas(256), { repeat: true, nearest: false });
+    // uniforms shared by every paper material (one object each, so a change reaches all of them)
+    this.U = {
+      uTime: { value: 0 }, uLampDir: { value: new THREE.Vector3(-0.55, 0.75, 0.38).normalize() }, uLampCol: { value: C(0xffe6c4).multiplyScalar(0.46) }, uAmb: { value: C(0xd8d2cc) },
+      uLantern: { value: new THREE.Vector4(0, 0, 0, 0) }, uLanternR: { value: 7 }, uLanternCol: { value: C(0xffc890) }, uFog: { value: new THREE.Vector3(10, 20, 0) }, uFogCol: { value: C(0x000000) },
+      uPaper: { value: C(0xf3e8cf) }, uBorder: { value: C(0xfffcf2) }, uCut: { value: C(0xb8ac94) }, uEdge: { value: C(0xcbbd9f) }, uGrain: { value: this.grainTex },
+      uShadowDir: { value: new THREE.Vector3(0.92, 0, -0.12) }, uShadowA: { value: 0.42 }, uSpot: { value: new THREE.Vector3(0, 0, 0.35) }, uShadowCol: { value: C(0x2a1a0a) },
+    };
+    this.buildAtlas();
+    this.cardGeo = cardGeometry();
+    const blobC = canvasOf(64, 64), bg = blobC.getContext('2d'), gr = bg.createRadialGradient(32, 32, 0, 32, 32, 32); gr.addColorStop(0, 'rgba(0,0,0,0.5)'); gr.addColorStop(0.55, 'rgba(0,0,0,0.3)'); gr.addColorStop(1, 'rgba(0,0,0,0)'); bg.fillStyle = gr; bg.fillRect(0, 0, 64, 64);
+    this.blobGeo = new THREE.PlaneGeometry(0.62, 0.42); this.blobGeo.rotateX(-Math.PI / 2);
+    this.blobMat = new THREE.MeshBasicMaterial({ map: texOf(blobC, { nearest: false }), color: 0x3a2410, transparent: true, depthWrite: false });
+    this.woodTex = texOf(woodCanvas(256), { repeat: true, nearest: false }); this.edgeTex = texOf(edgeCanvas(), { repeat: true, nearest: false });
     this.post = quality !== 'low';
     if (this.post) {
       const size = r.getDrawingBufferSize(new THREE.Vector2());
       this.composer = new EffectComposer(r, new THREE.WebGLRenderTarget(size.x, size.y, { type: THREE.HalfFloatType }));
       this.composer.addPass(new RenderPass(this.scene, this.camera));
-      // bloom is about ten extra full-screen passes for a faint glow: desktop 'high' only
-      if (quality === 'high') { this.bloom = new UnrealBloomPass(new THREE.Vector2(size.x / 2, size.y / 2), 0.32, 0.5, 0.82); this.composer.addPass(this.bloom); }
-      this.tsH = new ShaderPass(TiltShift); this.composer.addPass(this.tsH);
-      this.tsV = this.grade = new ShaderPass(Final); this.composer.addPass(this.tsV);
+      this.grade = new ShaderPass(Final); this.composer.addPass(this.grade);
     }
     this.group = null; this.actors = new Map(); this.time = 0; this.cam = new THREE.Vector3(); this.camReady = false;
+    this.lastCheck = new THREE.Vector3(1e9, 0, 0); this.fold = false; this.recheck = true; this.animating = false; this.cheap = false;
+    this.pm = new THREE.Matrix4();
+    this.initTurn();
     this.resize(); window.addEventListener('resize', () => this.resize());
   }
   resize() {
     const w = this.canvas.clientWidth || 1, h = this.canvas.clientHeight || 1;
     const touch = (navigator.maxTouchPoints || 0) > 0;
-    // the canvas is shown with image-rendering: pixelated, so a lower render resolution stays crisp pixel art
     let pr = Math.min(window.devicePixelRatio || 1, this.quality === 'high' ? 1.25 : 1, this.prCap || 9);
     if (touch) pr = Math.max(1, Math.min(pr, Math.sqrt(2000000 / (w * h))));
-    // never render the 3D map taller than 720 pixels (600 on phones and tablets): on big or high-DPI screens this is the
-    // largest saving, and the pixelated upscale keeps the pixel art crisp
+    // never render the 3D map taller than 720 pixels (600 on phones and tablets)
     pr = Math.min(pr, (touch ? 600 : 720) / h);
-    if (this.quality === 'low') pr = 1;
+    if (this.quality === 'low') pr = Math.min(pr, 1);
     this.renderer.setPixelRatio(pr); this.renderer.setSize(w, h, false);
     this.camera.aspect = w / h; this.camera.updateProjectionMatrix(); this.aspect = w / h;
-    if (this.composer) { this.composer.setPixelRatio(pr); this.composer.setSize(w, h); const s = this.renderer.getDrawingBufferSize(new THREE.Vector2()); this.tsH.uniforms.res.value.copy(s); this.tsV.uniforms.res.value.copy(s); }
+    if (this.composer) { this.composer.setPixelRatio(pr); this.composer.setSize(w, h); this.grade.uniforms.res.value.copy(this.renderer.getDrawingBufferSize(new THREE.Vector2())); }
+    this.recheck = true;
+  }
+  // the weakest step of the frame-rate watchdog: no card edges, no pop-up shadows
+  setCheap() { this.cheap = true; if (this.P) { this.P.edge.visible = false; this.P.shadow.visible = false; } }
+
+  // ---------------------------------------------------------------- the texture atlas (every tile face and sprite)
+  buildAtlas() {
+    const S = 2048, c = canvasOf(S, 2048), g = c.getContext('2d'); g.imageSmoothingEnabled = false;
+    let x = 0, y = 0, rowH = 0; const R = this.rects = {};
+    const place = (w, h) => { if (x + w > S) { x = 0; y += rowH + 2; rowH = 0; } const p = [x, y]; x += w + 2; rowH = Math.max(rowH, h); return p; };
+    for (const name of Object.keys(FACES)) {   // tile faces at 4x, with 4 wrapped pixels round them so mipmaps don't bleed
+      const t = tex(name), [px, py] = place(72, 72);
+      g.save(); g.beginPath(); g.rect(px, py, 72, 72); g.clip();
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) g.drawImage(t, 0, 0, 16, 16, px + 4 + dx * 64, py + 4 + dy * 64, 64, 64);
+      g.restore(); R['t:' + name] = { x: px + 4, y: py + 4, w: 64, h: 64 };
+    }
+    for (const name of [...Object.keys(SPR), ...Object.keys(POP)]) {
+      const s = spr(name), d = dieCut(s, 4, 6, 5), [px, py] = place(d.width, d.height);
+      g.drawImage(d, px, py); R[name] = { x: px, y: py, w: d.width, h: d.height, aw: s.width, ah: s.height };
+    }
+    const H = Math.ceil((y + rowH + 2) / 4) * 4, out = canvasOf(S, H); out.getContext('2d').drawImage(c, 0, 0);
+    for (const r of Object.values(R)) r.uv = [r.x / S, r.y / H, r.w / S, r.h / H];
+    this.atlas = texOf(out); this.atlas.anisotropy = 4;
+  }
+
+  // ---------------------------------------------------------------- materials
+  cardMaterial(map, edge = false) {
+    return new THREE.ShaderMaterial({ uniforms: { ...this.U, uAtlas: { value: map || this.atlas } }, vertexShader: CARD_VS, fragmentShader: CARD_FS, side: THREE.DoubleSide, defines: edge ? { EDGE: 1 } : {} });
   }
 
   // ---------------------------------------------------------------- building a map
   clear() {
-    if (this.group) { this.scene.remove(this.group); this.group.traverse((o) => { if (o.geometry) o.geometry.dispose(); if (o.material) (Array.isArray(o.material) ? o.material : [o.material]).forEach((m) => m.dispose()); }); }
+    if (this.group) {
+      this.scene.remove(this.group);
+      this.group.traverse((o) => { if (o.isMesh && o.geometry !== this.blobGeo && o.geometry !== this.cardGeo) o.geometry.dispose(); if (o.material && o.material !== this.blobMat) [].concat(o.material).forEach((m) => m.dispose()); });
+    }
+    if (this.groundTex) { this.groundTex.dispose(); this.groundTex = null; }
     for (const a of this.actors.values()) a.dispose(); this.actors.clear();
-    this.group = new THREE.Group(); this.scene.add(this.group); this.water = null; this.dyn = {}; this.lights = []; this.anim = [];
+    this.group = new THREE.Group(); this.scene.add(this.group); this.dyn = {}; this.list = []; this.P = null;
+    this.stretch = 1 / Math.cos(this.pitch());
+    this.recheck = true; this.entry = true; this.lastCheck.set(1e9, 0, 0);   // (a page turn keeps everything folded until the leaf turns)
   }
-  mat(top, side, opts = {}) {
-    const m = (t) => new THREE.MeshLambertMaterial({ map: tx(t), ...opts });
-    const s = m(side || top), t = m(top);
-    return [s, s, t, s, s, s];
+  // a sprite pop-up: art `w` tiles wide, standing at (x, z)
+  sprite(name, x, z, w = 1, o = {}) {
+    const R = this.rects[name], k = w / (R.aw * 4), S = this.stretch;
+    return this.push({ x, y: o.y || 0, z, b: 6 * k * S, w: R.w * k * (o.flip ? -1 : 1), h: R.h * k * S, uv: R.uv, yaw: o.yaw ?? 0, flags: o.flags || 0, ph: o.ph || 0 });
   }
-  // instanced boxes: list of [x, z, height, base] all with one material set
-  boxes(list, mats, opts = {}) {
-    if (!list.length) return null;
-    const g = new THREE.BoxGeometry(1, 1, 1); g.translate(0, 0.5, 0);
-    const mesh = new THREE.InstancedMesh(g, mats, list.length); const m = new THREE.Matrix4();
-    list.forEach(([x, z, h, base = 0, sx = 1, sz = 1], i) => { m.makeScale(sx, h, sz); m.setPosition(x + 0.5, base, z + 0.5); mesh.setMatrixAt(i, m); });
-    mesh.castShadow = !!opts.cast && this.quality === 'high'; mesh.receiveShadow = this.quality === 'high'; this.group.add(mesh); return mesh;
+  // a rectangular card printed with a tile face (repeated `rep` times across), optionally with a lid / roof flap
+  card(face, x, z, w, h, o = {}) {
+    const R = this.rects['t:' + face];
+    const L = o.lid ? this.rects['t:' + o.lid] : null;
+    return this.push({ x, y: 0, z, b: 0, w, h, d: o.d || 0, la: o.la ?? Math.PI / 2, uv: R.uv, uv2: L ? L.uv : R.uv, yaw: o.yaw || 0, flags: RECT | NOTAB | (o.flags || 0), rep: o.rep || Math.max(1, Math.round(w)) });
   }
-  // instanced flat decals (floors on top of boxes)
-  planes(list, texName, y = 0.001, opts = {}) {
-    if (!list.length) return null;
-    const g = new THREE.PlaneGeometry(1, 1); g.rotateX(-Math.PI / 2);
-    const mat = new THREE.MeshLambertMaterial({ map: tx(texName), transparent: !!opts.transparent, alphaTest: opts.alphaTest || 0 });
-    const mesh = new THREE.InstancedMesh(g, mat, list.length); const m = new THREE.Matrix4();
-    list.forEach(([x, z, yy], i) => { m.makeTranslation(x + 0.5, yy ?? y, z + 0.5); mesh.setMatrixAt(i, m); });
-    mesh.receiveShadow = this.quality === 'high'; this.group.add(mesh); return mesh;
-  }
-  // instanced billboards (all facing the camera's fixed direction): [x, z, w, h, base]
-  billboards(list, sprName, opts = {}) {
-    if (!list.length) return null;
-    const c = spr(sprName); const ar = c.height / c.width;
-    const g = new THREE.PlaneGeometry(1, ar); g.translate(0, ar / 2, 0);
-    const mat = new THREE.MeshLambertMaterial({ map: sx(sprName), alphaTest: 0.5, side: THREE.DoubleSide, emissive: new THREE.Color(opts.glow ? 0xffffff : 0x303030), emissiveMap: sx(sprName), emissiveIntensity: opts.glow ? 1 : 1 });
-    const mesh = new THREE.InstancedMesh(g, mat, list.length); const m = new THREE.Matrix4(), q = new THREE.Quaternion().setFromEuler(new THREE.Euler(-this.tilt, 0, 0)), s = new THREE.Vector3(), p = new THREE.Vector3();
-    list.forEach(([x, z, w = 1, base = 0], i) => { s.set(w, w, w); p.set(x, base, z); m.compose(p, q, s); mesh.setMatrixAt(i, m); });
-    mesh.castShadow = this.quality === 'high'; if (mesh.castShadow) mesh.customDepthMaterial = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking, map: sx(sprName), alphaTest: 0.5 });
-    this.group.add(mesh); return mesh;
-  }
-  // mountains: four-sided rocky pyramids
-  peaks(list, texName) {
-    if (!list.length) return;
-    const g = new THREE.ConeGeometry(0.72, 1, 4, 3); g.translate(0, 0.5, 0); g.rotateY(Math.PI / 4);
-    const t = tx(texName); t.wrapS = t.wrapT = THREE.RepeatWrapping;
-    const mesh = new THREE.InstancedMesh(g, new THREE.MeshLambertMaterial({ map: t, flatShading: true }), list.length); const m = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler();
-    list.forEach(([x, z, h, w, rot], i) => { e.set(0, (rot - 0.5) * 0.5, 0); q.setFromEuler(e); m.compose(new THREE.Vector3(x, 0, z), q, new THREE.Vector3(w, h, w)); mesh.setMatrixAt(i, m); });
-    mesh.castShadow = this.quality === 'high'; mesh.receiveShadow = this.quality === 'high'; this.group.add(mesh);
-  }
-  waterPlane(w, h, y = -0.22) {
-    const t = tx('water'); t.wrapS = t.wrapT = THREE.RepeatWrapping;
-    const mat = new THREE.ShaderMaterial({
-      uniforms: { map: { value: t }, time: { value: 0 }, rep: { value: new THREE.Vector2(w / 2, h / 2) } },
-      vertexShader: 'varying vec2 vUv; varying vec3 vW; void main(){ vUv = uv; vec4 w = modelMatrix * vec4(position,1.0); vW = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }',
-      fragmentShader: `uniform sampler2D map; uniform float time; uniform vec2 rep; varying vec2 vUv; varying vec3 vW;
-        void main(){
-          vec2 uv = vUv * rep; uv.x += time * 0.03; uv.y += sin(time * 0.6 + vW.x * 0.3) * 0.02;
-          uv = floor(uv * 32.0) / 32.0;
-          vec3 c = texture2D(map, uv).rgb;
-          float sp = step(0.985, fract(sin(dot(floor(vW.xz * 4.0), vec2(12.9898, 78.233)) + floor(time * 3.0)) * 43758.5453));
-          c += sp * vec3(0.6);
-          c = pow(c, vec3(2.2));
-          gl_FragColor = vec4(c, 1.0);
-        }`,
+  push(p) { this.list.push(p); return this.list.length - 1; }
+  // pack the pieces into instanced attributes: one draw for the cards, one for their edges, one for their shadows
+  finishPieces() {
+    const L = this.list, n = Math.max(1, L.length);
+    const A = (k) => new Float32Array(n * k);
+    const pos = A(4), size = A(4), uv = A(4), uv2 = A(4), misc = A(4), roll = A(2), rise = A(1);
+    L.forEach((p, i) => {
+      pos.set([p.x, p.y, p.z, p.b], i * 4); size.set([p.w, p.h, p.d || 0, p.la ?? Math.PI / 2], i * 4); uv.set(p.uv, i * 4); uv2.set(p.uv2 || p.uv, i * 4);
+      misc.set([p.yaw || 0, p.flags || 0, p.rep || 1, p.ph || 0], i * 4);
     });
-    const g = new THREE.PlaneGeometry(w, h); g.rotateX(-Math.PI / 2);
-    const mesh = new THREE.Mesh(g, mat); mesh.position.set(w / 2, y, h / 2); this.group.add(mesh); this.water = mat; return mesh;
+    const g = new THREE.InstancedBufferGeometry(); g.index = this.cardGeo.index; g.setAttribute('position', this.cardGeo.attributes.position);
+    const ia = (arr, k) => new THREE.InstancedBufferAttribute(arr, k);
+    const P = this.P = { n: L.length, pos: ia(pos, 4), size: ia(size, 4), uv: ia(uv, 4), uv2: ia(uv2, 4), misc: ia(misc, 4), roll: ia(roll, 2), rise: ia(rise, 1) };
+    P.rise.setUsage(THREE.DynamicDrawUsage);
+    for (const [k, a] of [['iPos', P.pos], ['iSize', P.size], ['iUV', P.uv], ['iUV2', P.uv2], ['iMisc', P.misc], ['iRoll', P.roll], ['iRise', P.rise]]) g.setAttribute(k, a);
+    g.instanceCount = L.length;
+    P.card = new THREE.Mesh(g, this.cardMaterial()); P.card.frustumCulled = false;
+    P.edge = new THREE.Mesh(g, this.cardMaterial(null, true)); P.edge.frustumCulled = false;
+    const sg = new THREE.InstancedBufferGeometry(); sg.setIndex([0, 1, 2, 0, 2, 3]); sg.setAttribute('position', new THREE.Float32BufferAttribute([-0.5, 0, 0, 0.5, 0, 0, 0.5, 1, 0, -0.5, 1, 0], 3));
+    for (const [k, a] of [['iPos', P.pos], ['iSize', P.size], ['iMisc', P.misc], ['iRise', P.rise]]) sg.setAttribute(k, a);
+    sg.instanceCount = L.length;
+    P.shadow = new THREE.Mesh(sg, new THREE.ShaderMaterial({ uniforms: this.U, vertexShader: SHADOW_VS, fragmentShader: SHADOW_FS, transparent: true, depthWrite: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 }));
+    P.shadow.frustumCulled = false; P.shadow.renderOrder = 1;
+    if (this.cheap) { P.edge.visible = false; P.shadow.visible = false; }
+    this.group.add(P.card, P.edge, P.shadow);
+    // pop-up animation state
+    P.tgt = new Uint8Array(n); P.vel = new Float32Array(n); P.delay = new Float32Array(n); P.act = new Uint8Array(n); P.active = [];
+    P.flags = L.map((p) => p.flags || 0); P.cx = L.map((p) => p.x); P.cz = L.map((p) => p.z); P.cy = L.map((p) => p.h * 0.35);
+    P.w = L.map((p) => p.w); P.hx = L.map((p) => Math.cos(p.yaw || 0) * Math.abs(p.w) / 2); P.hz = L.map((p) => -Math.sin(p.yaw || 0) * Math.abs(p.w) / 2);
+    this.list = null;
   }
-  light(x, z, y = 1.2, col = 0xffb060, int = 1.6, dist = 5) {
-    if (this.quality === 'low' || this.lights.length > 10) return;
-    const l = new THREE.PointLight(col, int, dist, 1.6); l.position.set(x + 0.5, y, z + 0.5); this.group.add(l); this.lights.push(l);
+  // show or hide pieces (doors, gates, the palisade, the rope bridge)
+  setVis(list, on) { if (!this.P || !list) return; for (const i of list) this.P.size.array[i * 4] = on ? this.P.w[i] : 0; this.P.size.needsUpdate = true; this.dirty = true; }
+  setUV(i, name) { const r = this.rects[name]; if (!this.P || !r) return; this.P.uv.array.set(r.uv, i * 4); this.P.uv.needsUpdate = true; this.dirty = true; }
+
+  // the ground printed on the page: one canvas, 16 pixels a tile; `at(x, z)` names the tile face (or null for blank)
+  printGround(x0, z0, x1, z1, at) {
+    const W = x1 - x0, H = z1 - z0, c = canvasOf(W * 16, H * 16), g = c.getContext('2d');
+    for (let z = z0; z < z1; z++) for (let x = x0; x < x1; x++) {
+      const f = at(x, z); if (!f) continue;
+      const t = tex(f), ox = t.width > 16 ? ((x & 1) * 16) : 0, oy = t.height > 16 ? ((z & 1) * 16) : 0;
+      g.drawImage(t, ox, oy, 16, 16, (x - x0) * 16, (z - z0) * 16, 16, 16);
+    }
+    this.groundTex = texOf(c);
+    this.book(x0, z0, x1, z1);
+  }
+  // the open book: the page (with the print on it), the stacked page edges, the cover and the table round it
+  book(x0, z0, x1, z1) {
+    const m = 1.5, px0 = x0 - m, pz0 = z0 - m, px1 = x1 + m, pz1 = z1 + m, cx = (px0 + px1) / 2, cz = (pz0 + pz1) / 2, W = px1 - px0, H = pz1 - pz0;
+    const gm = new THREE.ShaderMaterial({ uniforms: { ...this.U, uMap: { value: this.groundTex }, uPrint: { value: new THREE.Vector4(x0, z0, x1, z1) }, uPage: { value: new THREE.Vector4(px0, pz0, px1, pz1) }, uGutter: { value: cx }, uInk: { value: new THREE.Color(0xfaf0dc) } }, vertexShader: GROUND_VS, fragmentShader: GROUND_FS });
+    const pg = new THREE.PlaneGeometry(W, H); pg.rotateX(-Math.PI / 2); const page = new THREE.Mesh(pg, gm); page.position.set(cx, 0, cz); this.group.add(page);
+    // page edges: four sides of a box under the page, in one draw
+    const T = 0.34, e = 0.08, pos = [], uv = [], idx = [];
+    const quad = (a, b, len) => { const i = pos.length / 3; pos.push(...a[0], ...a[1], ...b[1], ...b[0]); uv.push(0, 1, len, 1, len, 0, 0, 0); idx.push(i, i + 1, i + 2, i, i + 2, i + 3); };
+    const c4 = [[px0 - e, pz1 + e], [px1 + e, pz1 + e], [px1 + e, pz0 - e], [px0 - e, pz0 - e]];
+    for (let i = 0; i < 4; i++) { const [ax, az] = c4[i], [bx, bz] = c4[(i + 1) % 4]; quad([[ax, -0.003, az], [bx, -0.003, bz]], [[ax, -T, az], [bx, -T, bz]], Math.hypot(bx - ax, bz - az) / 2); }
+    const eg = new THREE.BufferGeometry(); eg.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); eg.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); eg.setIndex(idx);
+    this.envMats = [];
+    const em = new THREE.MeshBasicMaterial({ map: this.edgeTex, side: THREE.DoubleSide }); this.group.add(new THREE.Mesh(eg, em));
+    const cm = new THREE.MeshBasicMaterial({ color: 0x7a2418, map: this.grainTex }); const cover = new THREE.Mesh(new THREE.BoxGeometry(W + 0.7, 0.16, H + 0.7), cm); cover.position.set(cx, -T - 0.08, cz); this.group.add(cover);
+    const wt = this.woodTex; wt.repeat.set(12, 12);
+    const tm = new THREE.MeshBasicMaterial({ map: wt, color: 0xd8c0a8 }); const tg = new THREE.PlaneGeometry(150, 150); tg.rotateX(-Math.PI / 2);
+    const table = new THREE.Mesh(tg, tm); table.position.set(cx, -T - 0.16, cz); this.group.add(table);
+    this.envMats.push([em, 0xffffff], [cm, 0x7a2418], [tm, 0xd8c0a8]);
   }
 
   // the overworld: rows of tile letters plus the places and which gates are open
   buildWorld(W, places, open) {
-    this.clear(); this.tilt = this.pitch();
-    const rows = W; const H = rows.length, Wd = rows[0].length; this.size = [Wd, H];
-    const groups = {};
-    const add = (k, v) => (groups[k] || (groups[k] = [])).push(v);
-    const r = mulberry(5);
-    const LAND = { '.': 'grass', '=': 'road', f: 'forest', h: 'hill', s: 'sand', w: 'swamp', n: 'snow', M: 'grass', N: 'snow', G: 'road' };
-    for (let z = 0; z < H; z++) for (let x = 0; x < Wd; x++) {
+    this.clear(); const rows = W; const H = rows.length, Wd = rows[0].length; this.size = [Wd, H];
+    const r = mulberry(5), dyn = this.dyn; dyn.palisade = []; dyn.rope = []; dyn.causeway = [];
+    const LAND = { '.': 'grass', '=': 'road', f: 'forestFloor', h: 'grass', s: 'sand', w: 'swamp', n: 'snow', M: 'grass', N: 'snow', G: 'road' };
+    const ground = [];
+    for (let z = 0; z < H; z++) { ground.push([]); for (let x = 0; x < Wd; x++) {
       const c = rows[z][x];
-      if (c === '~' || c === 'D' || c === 'v' || c === 'X' || c === 'c') {
-        if (c === 'D') add('dock', [x, z, 0.12, -0.12]);
-        if (c === 'v') add('chasm', [x, z, 2.38, -2.5]);
-        if (c === 'X') { add('chasm', [x, z, 2.38, -2.5]); add('rope', [x, z]); }
-        if (c === 'c') add('causeway', [x, z]);
-        continue;
-      }
-      let k = LAND[c] || 'grass'; if (k === 'grass' && ((x * 7 + z * 13) % 5 === 0 || Math.sin(x * 0.7) + Math.cos(z * 0.6) > 1.3)) k = 'grass2'; add('land_' + k, [x, z, 0.5, -0.5]);
-      if (c === 'f') { const n = 1 + (r() < 0.5 ? 1 : 0); for (let i = 0; i < n; i++) add('tree', [x + 0.2 + r() * 0.6, z + 0.25 + r() * 0.6, 1.05 + r() * 0.25]); }
-      if (c === 'h') { add('mound', [x + 0.3 + r() * 0.2, z + 0.45, 0.85 + r() * 0.25]); if (r() < 0.6) add('mound', [x + 0.6 + r() * 0.2, z + 0.75, 0.65 + r() * 0.2]); }
-      if (c === 'M') { add('peak', [x + 0.5, z + 0.5, 0.8 + r() * 0.6, 1.3 + r() * 0.2, r()]); }
-      if (c === 'N') { add('speak', [x + 0.5, z + 0.5, 0.9 + r() * 0.8, 1.3 + r() * 0.2, r()]); }
-      if (c === 'n' && r() < 0.08) add('snowpine', [x + 0.5, z + 0.6, 1]);
-      if (c === 's' && r() < 0.03) add('palm', [x + 0.5, z + 0.6, 1]);
-      if (c === 'w' && r() < 0.1) add('deadtree', [x + 0.5, z + 0.6, 0.9]);
-      if (c === '.' && r() < 0.02) add('bush', [x + 0.5, z + 0.6, 0.6]);
-      if (c === 'G') add('palisade', [x, z, 0.9, 0]);
-    }
-    this.waterPlane(Wd, H);
-    this.boxes(groups.land_grass || [], this.mat('grass', 'grassSide')); this.boxes(groups.land_grass2 || [], this.mat('grass2', 'grassSide'));
-    this.boxes(groups.land_road || [], this.mat('road', 'dirtSide'));
-    this.boxes(groups.land_forest || [], this.mat('forestFloor', 'grassSide'));
-    this.boxes(groups.land_hill || [], this.mat('grass', 'grassSide'));
-    this.boxes(groups.land_sand || [], this.mat('sand', 'sandSide'));
-    this.boxes(groups.land_swamp || [], this.mat('swamp', 'dirtSide'));
-    this.boxes(groups.land_snow || [], this.mat('snow', 'snowSide'));
-    this.boxes(groups.hill || [], this.mat('hill', 'grassSide'), { cast: 1 });
-    this.peaks(groups.peak || [], 'rockPeak'); this.peaks(groups.speak || [], 'snowPeak');
-    this.boxes(groups.dock || [], this.mat('plank', 'plankSide'));
-    this.boxes(groups.chasm || [], this.mat('chasm'));
-    this.dyn.palisade = this.boxes(groups.palisade || [], this.mat('palisadeTop', 'palisade'), { cast: 1 });
-    this.dyn.rope = this.boxes((groups.rope || []).map(([x, z]) => [x, z, 0.08, -0.1, 0.8, 1]), this.mat('plank', 'plankSide'));
-    this.dyn.causeway = this.boxes((groups.causeway || []).map(([x, z]) => [x, z, 0.4, -0.5]), this.mat('pave', 'wallStone'));
-    this.billboards(groups.mound || [], 'mound'); this.billboards(groups.tree || [], 'tree'); this.billboards(groups.snowpine || [], 'snowpine'); this.billboards(groups.palm || [], 'palm');
-    this.billboards(groups.deadtree || [], 'deadtree'); this.billboards(groups.bush || [], 'bush');
-    for (const [id, [x, z, look]] of Object.entries(places)) this.placeModel(x, z, look);
-    this.setOpen(open);
-    this.dark(false); this.scene.background.set(0x7fa8d8); this.scene.fog = new THREE.Fog(0x9ab8dc, 30, 70); this.camDist = 21;
+      let f = LAND[c] || 'grass';
+      if (c === '~' || c === 'c') f = 'water'; else if (c === 'D') f = 'plank'; else if (c === 'v' || c === 'X') f = 'chasm';
+      else if (f === 'grass' && ((x * 7 + z * 13) % 5 === 0 || Math.sin(x * 0.7) + Math.cos(z * 0.6) > 1.3)) f = 'grass2';
+      ground[z].push(f);
+      if (c === '~' && r() < 0.11) this.sprite('wave', x + 0.2 + r() * 0.6, z + 0.35 + r() * 0.5, 0.7, { flags: WAVE | NOTAB, ph: r() * 6.3, flip: r() < 0.5 });
+      if (c === 'X') dyn.rope.push(this.card('plank', x + 0.5, z + 1, 0.8, 1, { flags: FLAT | NOSHADOW, rep: 1 }));
+      if (c === 'c') dyn.causeway.push(this.card('pave', x + 0.5, z + 1, 1, 1, { flags: FLAT | NOSHADOW, rep: 1 }));
+      if (c === 'G') dyn.palisade.push(this.card('palisade', x + 0.5, z + 0.6, 1, 0.9));
+      if (c === 'f') { const n = 1 + (r() < 0.5 ? 1 : 0); for (let i = 0; i < n; i++) this.sprite('tree', x + 0.2 + r() * 0.6, z + 0.3 + r() * 0.6, 1.05 + r() * 0.25, { yaw: (r() - 0.5) * 0.3 }); }
+      if (c === 'h') { this.sprite('mound', x + 0.3 + r() * 0.2, z + 0.5, 0.85 + r() * 0.25); if (r() < 0.6) this.sprite('mound', x + 0.6 + r() * 0.2, z + 0.85, 0.65 + r() * 0.2); }
+      if (c === 'M') this.sprite('peak', x + 0.5 + (r() - 0.5) * 0.3, z + 0.7, 1.5 + r() * 0.4, { yaw: (r() - 0.5) * 0.35, flip: r() < 0.5 });
+      if (c === 'N') this.sprite('snowpeak', x + 0.5 + (r() - 0.5) * 0.3, z + 0.7, 1.5 + r() * 0.4, { yaw: (r() - 0.5) * 0.35, flip: r() < 0.5 });
+      if (c === 'n' && r() < 0.08) this.sprite('snowpine', x + 0.5, z + 0.6, 1);
+      if (c === 's' && r() < 0.03) this.sprite('palm', x + 0.5, z + 0.6, 1);
+      if (c === 'w' && r() < 0.1) this.sprite('deadtree', x + 0.5, z + 0.6, 0.9);
+      if (c === '.' && r() < 0.02) this.sprite('bush', x + 0.5, z + 0.6, 0.6);
+    } }
+    for (const [x, z, look] of Object.values(places)) this.placeModel(x, z, look);
+    this.printGround(0, 0, Wd, H, (x, z) => ground[z][x]);
+    this.finishPieces(); this.setOpen(open);
+    this.theme({ paper: 0xf3e8cf }); this.dark(false); this.camDist = 21;
   }
-  setOpen(open) {
-    if (this.dyn.palisade) this.dyn.palisade.visible = !open.G;
-    if (this.dyn.rope) this.dyn.rope.visible = !!open.X;
-    if (this.dyn.causeway) this.dyn.causeway.visible = !!open.c;
-    if (this.boat) this.boat.visible = !!open.D;
-  }
-  // little dioramas standing for towns, caves, towers on the world map
+  setOpen(open) { this.setVis(this.dyn.palisade, !open.G); this.setVis(this.dyn.rope, !!open.X); this.setVis(this.dyn.causeway, !!open.c); }
+  // towns, caves and towers on the world map: two or three cut-out layers stood one behind the other
   placeModel(x0, z0, look) {
-    const g = new THREE.Group(); g.position.set(x0 + 0.5, 0, z0 + 0.5); g.scale.setScalar(1.6); this.group.add(g);
-    const x = -0.5, z = -0.5;
-    const add = (mesh) => { mesh.castShadow = this.quality === 'high'; mesh.receiveShadow = this.quality === 'high'; g.add(mesh); return mesh; };
-    const box = (w, h, d, px, py, pz, top, side) => { const geo = new THREE.BoxGeometry(w, h, d); const m = add(new THREE.Mesh(geo, this.mat(top, side))); m.position.set(x + 0.5 + px, py + h / 2, z + 0.5 + pz); return m; };
-    const roof = (w, d, px, py, pz, col, h = 0.35) => {
-      const sh = new THREE.Shape(); sh.moveTo(-w / 2 - 0.04, 0); sh.lineTo(w / 2 + 0.04, 0); sh.lineTo(0, h); sh.lineTo(-w / 2 - 0.04, 0);
-      const geo = new THREE.ExtrudeGeometry(sh, { depth: d + 0.08, bevelEnabled: false }); geo.translate(0, 0, -(d + 0.08) / 2);
-      const key = { 0x9a3020: 'roofRed', 0x2a4a8a: 'roofBlue', 0x2a6a4a: 'roofGreen', 0x8a6a30: 'roofThatch', 0xc89820: 'roofGold', 0x3a3020: 'roofDark', 0x3a1a4a: 'roofPurple', 0x2a5a7a: 'roofBlue' }[col] || 'roofRed';
-      const t = tx(key); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(3, 3);
-      const m = add(new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ map: t }))); m.position.set(x + 0.5 + px, py, z + 0.5 + pz); return m; };
-    const house = (px, pz, s = 0.32, col = 0x9a3020) => { box(s, s * 0.7, s * 0.8, px, 0, pz, 'plasterTop', 'plaster'); roof(s, s * 0.8, px, s * 0.7, pz, col, s * 0.5); };
-    if (look === 'town' || look === 'city') {
-      for (const [a, b, w, d] of [[0, -0.46, 1, 0.06], [-0.47, 0, 0.06, 0.98], [0.47, 0, 0.06, 0.98], [-0.32, 0.46, 0.36, 0.06], [0.32, 0.46, 0.36, 0.06]]) box(w, 0.14, d, a, 0, b, 'wallStoneTop', 'wallStone');
-      house(-0.22, -0.2, 0.34); house(0.22, -0.2, 0.3, 0x2a4a8a); house(-0.2, 0.17, 0.28, 0x2a6a4a); house(0.22, 0.16, 0.3);
-      if (look === 'city') { box(0.22, 0.5, 0.22, -0.4, 0, 0.4, 'wallStoneTop', 'wallStone'); box(0.22, 0.5, 0.22, 0.4, 0, 0.4, 'wallStoneTop', 'wallStone'); }
-    }
-    else if (look === 'village') { house(-0.2, -0.12, 0.34, 0x8a6a30); house(0.24, 0.16, 0.3, 0x8a6a30); for (const a of [-0.45, 0.45]) box(0.04, 0.12, 0.9, a, 0, 0, 'plank', 'fortWall'); }
-    else if (look === 'pavilion') { box(0.6, 0.06, 0.6, 0, 0, 0, 'plank', 'plankSide'); for (const [a, b] of [[-0.24, -0.24], [0.24, -0.24], [-0.24, 0.24], [0.24, 0.24]]) box(0.05, 0.4, 0.05, a, 0.06, b, 'plank', 'plank'); roof(0.75, 0.75, 0, 0.46, 0, 0x2a5a7a, 0.32); }
-    else if (look === 'temple') { box(0.7, 0.32, 0.5, 0, 0, -0.05, 'templeWallTop', 'templeWall'); roof(0.9, 0.7, 0, 0.32, -0.05, 0xc89820, 0.32); roof(0.6, 0.45, 0, 0.6, -0.05, 0xc89820, 0.22); }
-    else if (look === 'tower') { for (let i = 0; i < 4; i++) { const s = 0.5 - i * 0.08; box(s, 0.32, s, 0, i * 0.42, 0, 'templeWallTop', 'templeWall'); roof(s * 1.35, s * 1.35, 0, i * 0.42 + 0.32, 0, 0x2a6a4a, 0.12); } }
-    else if (look === 'fort') { box(0.9, 0.5, 0.06, 0, 0, 0.42, 'palisadeTop', 'palisade'); box(0.06, 0.5, 0.9, -0.42, 0, 0, 'palisadeTop', 'palisade'); box(0.06, 0.5, 0.9, 0.42, 0, 0, 'palisadeTop', 'palisade'); box(0.3, 0.8, 0.3, 0, 0, -0.1, 'palisadeTop', 'palisade'); roof(0.4, 0.4, 0, 0.8, -0.1, 0x3a3020, 0.25); }
-    else if (look === 'desertfort') { box(0.8, 0.45, 0.8, 0, 0, 0, 'tombWallTop', 'tombWall'); box(0.3, 0.75, 0.3, -0.25, 0, -0.25, 'tombWallTop', 'tombWall'); }
-    else if (look === 'tomb') { box(0.7, 0.35, 0.7, 0, 0, 0, 'tombWallTop', 'tombWall'); box(0.45, 0.3, 0.45, 0, 0.35, 0, 'tombWallTop', 'tombWall'); box(0.2, 0.2, 0.2, 0, 0.65, 0, 'tombWallTop', 'tombWall'); box(0.18, 0.28, 0.02, 0, 0, 0.36, 'void', 'void'); }
-    else if (look === 'cave' || look === 'grove') {
-      if (look === 'grove') { this.billboards([[x0 + 0.1, z0 + 0.3, 1.4], [x0 + 0.9, z0 + 0.35, 1.45], [x0 + 0.5, z0 + 0.05, 1.6]], 'pine'); }
-      else { const cg = new THREE.ConeGeometry(0.62, 0.9, 5, 2); cg.translate(0, 0.45, 0); const cm = add(new THREE.Mesh(cg, new THREE.MeshLambertMaterial({ map: tx('rockPeak'), flatShading: true }))); cm.position.set(0, 0, -0.12); box(0.3, 0.32, 0.05, 0, 0, 0.3, 'void', 'void'); box(0.42, 0.06, 0.08, 0, 0.32, 0.31, 'rockTop', 'rockSide'); }
-    }
-    else if (look === 'lair') { box(0.8, 0.6, 0.6, 0, 0, -0.1, 'lairWallTop', 'lairWall'); box(0.2, 1.1, 0.2, -0.35, 0, -0.3, 'lairWallTop', 'lairWall'); box(0.2, 1.1, 0.2, 0.35, 0, -0.3, 'lairWallTop', 'lairWall'); roof(0.9, 0.7, 0, 0.6, -0.1, 0x3a1a4a, 0.4); this.light(x0, z0 + 0.6, 1.2, 0xa040ff, 2.4, 5); }
+    const L = { town: [['town_b', 1.7, -0.12], ['town_f', 1.8, 0.32]], city: [['city_b', 1.85, -0.12], ['city_f', 1.95, 0.34]], village: [['village_b', 1.65, -0.05], ['village_f', 1.7, 0.34]],
+      pavilion: [['pavilion', 1.55, 0.2]], temple: [['temple', 1.75, 0.2]], tower: [['tower', 0.95, 0.2]], fort: [['fort_b', 0.85, -0.15], ['fort_f', 1.85, 0.34]], desertfort: [['desertfort_b', 0.75, -0.2], ['desertfort_f', 1.8, 0.34]],
+      tomb: [['tomb', 1.65, 0.2]], cave: [['cave', 1.65, 0.25]], lair: [['lair', 1.75, 0.2]], grove: [['pine', 1.3, -0.15, -0.4], ['pine', 1.5, 0.05, 0.38], ['pine', 1.2, 0.35, -0.05]] }[look] || [];
+    for (const [name, w, dz, dx = 0] of L) this.sprite(name, x0 + 0.5 + dx, z0 + 0.5 + dz, w);
   }
 
   // an interior map (town or dungeon)
   buildMap(M, state) {
-    this.renderer.shadowMap.needsUpdate = true; this.sunX = this.sunZ = null;
-    this.clear(); this.tilt = this.pitch();
+    this.clear();
     const theme = THEMES[M.theme] || THEMES.town; const rows = M.rows, H = rows.length, W = rows[0].length; this.size = [W, H];
-    const G = {}; const add = (k, v) => (G[k] || (G[k] = [])).push(v); const r = mulberry(9);
+    const r = mulberry(9);
     const floorOf = (c) => {
       if (c === ',' || c === '"' || c === '%') return theme.grass ? 'grass' : theme.floor;
       if (c === ':') return theme.pave || 'pave'; if (c === 'o' || c === 'b' || c === 't' || c === 'k' || c === '=') return 'wood';
@@ -282,153 +390,249 @@ export class View {
       if (c === 'f') return 'flowersG';
       return theme.floor;
     };
-    this.chests = {}; this.doors = {}; this.gates = {};
-    // an apron of scenery round the edge so the map does not float in the sky
+    this.chests = {}; this.doors = {}; this.gates = {}; this.dyn.doors = {}; this.dyn.gates = {}; this.dyn.chests = {};
+    // an apron of scenery round the edge so the map does not end at its last row
     const apron = { town: '"', village: '"', city: '"', temple: '"', pavilion: '~', forest: '"', desert: 's', fort: '#' }[M.theme];
-    if (apron) {
-      const A = 12;
-      for (let z = -A; z < H + A; z++) for (let x = -A; x < W + A; x++) {
-        if (z >= 0 && z < H && x >= 0 && x < W && rows[z][x] !== ' ') continue;
-        if (apron === '~') continue;
-        if (apron === '#') { add('wall', [x, z, 1 + r() * 0.8, 0]); continue; }
-        if (apron === 's') { add('f_sand', [x, z, 0.3, -0.3]); if (r() < 0.06) add('palm', [x + 0.5, z + 0.6, 1]); continue; }
-        add('f_' + (M.theme === 'forest' ? 'forestFloor' : 'grass'), [x, z, 0.3, -0.3]);
-        if (r() < (M.theme === 'forest' ? 0.75 : 0.45)) add('tree', [x + 0.2 + r() * 0.6, z + 0.3 + r() * 0.5, 1.1 + r() * 0.3]);
-      }
+    const A = apron ? (apron === '~' ? 7 : 12) : 0, x0 = -A, z0 = -A, x1 = W + A, z1 = H + A;
+    const G = {}; const solid = {};   // printed face per tile; standing blocks per tile
+    const key = (x, z) => x + ',' + z;
+    for (let z = z0; z < z1; z++) for (let x = x0; x < x1; x++) {
+      const inside = z >= 0 && z < H && x >= 0 && x < W;
+      if (inside && rows[z][x] !== ' ') continue;
+      if (!apron) continue;
+      if (apron === '~') { G[key(x, z)] = 'water'; if (r() < 0.12) this.sprite('wave', x + 0.2 + r() * 0.6, z + 0.35 + r() * 0.5, 0.7, { flags: WAVE | NOTAB, ph: r() * 6.3, flip: r() < 0.5 }); continue; }
+      if (apron === '#') { G[key(x, z)] = theme.wallTop; solid[key(x, z)] = 'wall'; continue; }
+      if (apron === 's') { G[key(x, z)] = 'sand'; if (r() < 0.06) this.sprite('palm', x + 0.5, z + 0.6, 1); continue; }
+      G[key(x, z)] = M.theme === 'forest' ? 'forestFloor' : 'grass';
+      if (r() < (M.theme === 'forest' ? 0.75 : 0.45)) this.sprite('tree', x + 0.2 + r() * 0.6, z + 0.3 + r() * 0.5, 1.1 + r() * 0.3, { yaw: (r() - 0.5) * 0.3 });
     }
-    let ci = 0;
+    let ci = 0; const tree = M.theme === 'snowpeak' ? 'snowpine' : 'tree';
     for (let z = 0; z < H; z++) for (let x = 0; x < W; x++) {
       let c = rows[z][x]; if (c === ' ') continue;
       if (/[A-Z]/.test(c)) c = M.floor || '.';
-      const t = TILES[c] || TILES['.'];
-      if (c === '~') { continue; }
-      if (c === 'v') { add('void', [x, z, 0.05, -3]); continue; }
-      if (c === '#') { add('wall', [x, z, theme.wallH || 1, 0]); continue; }
-      if (c === 'h') { add('house', [x, z, 0.85, 0]); continue; }
-      if (c === 'x' && theme.fortFence) { add('pal', [x, z, 0.9, 0]); continue; }
-      add('f_' + floorOf(c), [x, z, 0.3, -0.3]);
-      if (c === '"' && M.theme === 'forest') { add('hedge', [x, z, 0.75 + r() * 0.15, 0]); if (r() < 0.22) add('treetop', [x + 0.5, z + 0.5, 0.9 + r() * 0.3, 0.6]); }
-      else if (c === '"') add('tree', [x + 0.5, z + 0.55, 1.15 + r() * 0.2]);
-      else if (c === '%') add('bush', [x + 0.5, z + 0.6, 0.9]);
-      else if (c === 'p') add('pot', [x + 0.5, z + 0.6, 0.7]);
-      else if (c === 'r') add('rock', [x + 0.5, z + 0.6, 0.85]);
-      else if (c === 'u') add('statue', [x + 0.5, z + 0.5, 0.9]);
-      else if (c === 'l') { add('lamp', [x + 0.5, z + 0.5, 0.9]); this.light(x, z, 1.2); }
-      else if (c === '&') { add('brazier', [x + 0.5, z + 0.5, 0.7]); add('fire', [x + 0.5, z + 0.5, 0.55, 0.3]); this.light(x, z, 0.9, 0xff8030, 2.2, 5); }
-      else if (c === 'w') add('well', [x + 0.5, z + 0.6, 0.9]);
-      else if (c === 'x') add('fence', [x + 0.5, z + 0.5, 1]);
-      else if (c === 'i') add('pillar', [x, z, 1.25, 0, 0.32, 0.32]);
-      else if (c === 'b') add('bed', [x, z, 0.3, 0, 0.8, 0.9]);
-      else if (c === 't') add('table', [x, z, 0.4, 0, 0.8, 0.8]);
-      else if (c === 'q') add('coffin', [x, z, 0.35, 0, 0.6, 0.9]);
-      else if (c === 'k') add('shelf', [x, z, 0.9, 0, 1, 0.5]);
-      else if (c === '=') add('counter', [x, z, 0.45, 0]);
-      else if (c === 'd') { const k = x + ',' + z; this.doors[k] = [x, z]; }
-      else if (c === 'g') { const k = x + ',' + z; this.gates[k] = [x, z]; }
-      else if (c === 'c') { this.chests[x + ',' + z] = { x, z, i: ci++ }; }
-      else if (/[1-9]/.test(c)) add('stairs', [x, z]);
+      const k = key(x, z);
+      if (c === '~') { G[k] = 'water'; if (r() < 0.16) this.sprite('wave', x + 0.2 + r() * 0.6, z + 0.35 + r() * 0.5, 0.7, { flags: WAVE | NOTAB, ph: r() * 6.3, flip: r() < 0.5 }); continue; }
+      if (c === 'v') { G[k] = 'void'; continue; }
+      if (c === '#') { G[k] = theme.wallTop; solid[k] = 'wall'; continue; }
+      if (c === 'h') { G[k] = 'plasterTop'; solid[k] = 'house'; continue; }
+      if (c === 'x' && theme.fortFence) { G[k] = 'palisadeTop'; solid[k] = 'pal'; continue; }
+      G[k] = floorOf(c);
+      const cx = x + 0.5, yaw = (r() - 0.5) * 0.25;
+      if (c === '"' && M.theme === 'forest') { G[k] = 'leafTop'; solid[k] = 'hedge'; if (r() < 0.22) this.sprite('tree', cx, z + 0.45, 0.9 + r() * 0.3, { y: 0.8, flags: NOSHADOW | NOTAB }); }
+      else if (c === '"') this.sprite(tree, cx, z + 0.55, 1.15 + r() * 0.2, { yaw });
+      else if (c === '%') this.sprite('bush', cx, z + 0.6, 0.9, { yaw });
+      else if (c === 'p') this.sprite('pot', cx, z + 0.6, 0.7, { yaw });
+      else if (c === 'r') this.sprite('rock', cx, z + 0.6, 0.85, { yaw });
+      else if (c === 'u') this.sprite('statue', cx, z + 0.5, 0.9);
+      else if (c === 'l') this.sprite('lamp', cx, z + 0.5, 0.9);
+      else if (c === '&') { const R0 = this.rects.brazier, bh = R0.ah / R0.aw * 0.7 * this.stretch; this.sprite('brazier', cx, z + 0.5, 0.7); this.sprite('fire', cx, z + 0.52, 0.55, { y: bh * 0.62, flags: GLOW | NOSHADOW | NOTAB }); }
+      else if (c === 'w') this.sprite('well', cx, z + 0.6, 0.9);
+      else if (c === 'x') this.sprite('fence', cx, z + 0.5, 1);
+      else if (c === 'i') this.card('templeWall', cx, z + 0.66, 0.32, 1.25, { lid: 'templeWallTop', d: 0.32, rep: 1 });
+      else if (c === 'b') this.card('wood', cx, z + 0.95, 0.8, 0.3, { lid: 'bed', d: 0.9, rep: 1 });
+      else if (c === 't') this.card('wood', cx, z + 0.9, 0.8, 0.4, { lid: 'table', d: 0.8, rep: 1 });
+      else if (c === 'q') this.card('wood', cx, z + 0.95, 0.6, 0.35, { lid: 'coffin', d: 0.9, rep: 1 });
+      else if (c === 'k') this.card('shelf', cx, z + 0.75, 1, 0.9, { lid: 'wood', d: 0.5, rep: 1 });
+      else if (c === '=') this.card('counter', cx, z + 1, 1, 0.45, { lid: 'counter', d: 1, rep: 1 });
+      else if (c === 'd') { this.doors[k] = [x, z]; this.dyn.doors[k] = [this.card('door', cx, z + 1, 1, 0.85, { rep: 1 })]; }
+      else if (c === 'g') { this.gates[k] = [x, z]; this.dyn.gates[k] = [this.card('gate', cx, z + 0.9, 1, 0.85, { rep: 1, flags: NOSHADOW })]; }
+      else if (c === 'c') { this.chests[k] = { x, z, i: ci++ }; this.dyn.chests[k] = this.sprite('chest', cx, z + 0.55, 0.75); }
+      else if (/[1-9]/.test(c)) G[k] = 'stairs';
     }
-    if (rows.some((rw) => rw.includes('~')) || apron === '~') { const wm = this.waterPlane(W + 40, H + 40, -0.24); wm.position.x -= 20; wm.position.z -= 20; }
-    for (const k of Object.keys(G)) if (k.startsWith('f_')) this.boxes(G[k], this.mat(k.slice(2), theme.side || 'dirtSide'));
-    this.boxes(G.wall || [], this.mat(theme.wallTop, theme.wall), { cast: 1 });
-    this.boxes(G.hedge || [], this.mat('leafTop', 'leafSide'), { cast: 1 }); this.billboards(G.treetop || [], 'tree');
-    this.boxes(G.house || [], this.mat('plasterTop', 'plaster'), { cast: 1 });
-    this.boxes(G.pal || [], this.mat('palisadeTop', 'palisade'), { cast: 1 });
-    this.boxes(G.void || [], this.mat('void'));
-    this.boxes(G.pillar || [], this.mat('templeWallTop', 'templeWall'), { cast: 1 });
-    this.boxes(G.bed || [], this.mat('bed', 'wood'));
-    this.boxes(G.table || [], this.mat('table', 'wood'), { cast: 1 });
-    this.boxes(G.coffin || [], this.mat('coffin', 'wood'), { cast: 1 });
-    this.boxes(G.shelf || [], this.mat('wood', 'shelf'), { cast: 1 });
-    this.boxes(G.counter || [], this.mat('counter', 'counter'));
-    this.billboards(G.palm || [], 'palm');
-    for (const [n, list] of Object.entries({ tree: G.tree, bush: G.bush, pot: G.pot, rock: G.rock, statue: G.statue, lamp: G.lamp, brazier: G.brazier, well: G.well, fence: G.fence })) this.billboards(list || [], n === 'tree' ? (M.theme === 'snowpeak' ? 'snowpine' : 'tree') : n);
-    if (G.fire) this.dyn.fire = this.billboards(G.fire, 'fire', { glow: 1 });
-    // stairs: a flat step texture
-    this.planes((G.stairs || []).map(([x, z]) => [x, z, 0.004]), 'stairs');
-    // doors, gates and chests change state: one mesh each
-    this.dyn.doorMeshes = {}; this.dyn.chestMeshes = {}; this.dyn.gateMeshes = {};
-    for (const [k, [x, z]] of Object.entries(this.doors)) { const m = new THREE.Mesh(new THREE.BoxGeometry(1, 0.85, 1), this.mat('wood', 'door')); m.position.set(x + 0.5, 0.425, z + 0.5); m.castShadow = this.quality === 'high'; this.group.add(m); this.dyn.doorMeshes[k] = m; }
-    for (const [k, [x, z]] of Object.entries(this.gates)) { const m = new THREE.Mesh(new THREE.BoxGeometry(1, 0.85, 0.15), new THREE.MeshLambertMaterial({ map: tx('gate'), transparent: true, alphaTest: 0.5, side: THREE.DoubleSide })); m.position.set(x + 0.5, 0.425, z + 0.9); this.group.add(m); this.dyn.gateMeshes[k] = m; }
-    for (const [k, c] of Object.entries(this.chests)) this.dyn.chestMeshes[k] = this.prop(c.x + 0.5, c.z + 0.55, 'chest', 0.75);
+    // walls, houses and palisades: a card on the south edge of every tile (cut-outs stood one behind another), merged
+    // along each row; the front one shows the wall (a house gets a roof flap), the ones behind show the top; and side
+    // planes where a block ends
+    const KIND = { wall: { h: theme.wallH || 1, face: theme.wall, back: theme.wallTop }, house: { h: 0.85, face: 'plaster', back: 'roofRed', lid: 'roofRed' }, pal: { h: 0.9, face: 'palisade', back: 'palisadeTop' }, hedge: { h: 0.8, face: 'leafSide', back: 'leafTop' } };
+    const at = (x, z) => solid[key(x, z)];
+    for (let z = z0; z < z1; z++) {
+      let x = x0;
+      while (x < x1) {
+        const kd = at(x, z); if (!kd) { x++; continue; }
+        const front = at(x, z + 1) !== kd; let e = x + 1;
+        while (e < x1 && at(e, z) === kd && (at(e, z + 1) !== kd) === front) e++;
+        const K = KIND[kd], n = e - x;
+        // houses: the facade with a roof flap, roof layers behind; walls, hedges, palisades: box pop-ups (a face with a lid)
+        if (kd === 'house') { if (front) this.card(K.face, (x + e) / 2, z + 1, n, K.h, { lid: K.lid, d: 0.55, la: 1.05, rep: n }); else this.card(K.back, (x + e) / 2, z + 1, n, K.h, { rep: n }); }
+        else this.card(K.face, (x + e) / 2, z + 1, n, K.h, { lid: K.back, d: 1, rep: n, flags: (front ? 0 : NORIM) | NOLIDRIM });
+        x = e;
+      }
+    }
+    for (let x = x0; x < x1; x++) for (const side of [-1, 1]) {
+      let z = z0;
+      while (z < z1) {
+        const kd = at(x, z); if (!kd || at(x + side, z) === kd) { z++; continue; }
+        let e = z + 1; while (e < z1 && at(x, e) === kd && at(x + side, e) !== kd) e++;
+        const K = KIND[kd], n = e - z;
+        this.card(K.face, x + (side > 0 ? 1 : 0), (z + e) / 2, n, K.h, { yaw: side * Math.PI / 2, rep: n, flags: NOSHADOW });
+        z = e;
+      }
+    }
+    this.printGround(x0, z0, x1, z1, (x, z) => G[key(x, z)] || null);
+    this.finishPieces();
     this.refresh(state);
-    if (M.dark) { this.dark(true, state.lantern); } else this.dark(false);
     this.camDist = M.town ? 16 : 15;
-    this.scene.background.set(M.dark ? 0x000000 : theme.sky); this.scene.fog = M.dark ? new THREE.Fog(0x000000, this.camDist - 3, this.camDist + (state.lantern ? 5 : 2)) : new THREE.Fog(theme.sky, 26, 60);
-    if (!M.dark) { this.hemi.intensity = theme.light ?? 0.95; this.sun.intensity = theme.sun ?? 0.85; }
-    this.camDist = M.town ? 16 : 15;
+    this.theme(theme, { dark: M.dark, lanternOn: state.lantern });
   }
-  prop(x, z, sprName, w = 1) {
-    const c = spr(sprName); const ar = c.height / c.width; const g = new THREE.PlaneGeometry(w, w * ar); g.translate(0, w * ar / 2, 0);
-    const m = new THREE.Mesh(g, new THREE.MeshLambertMaterial({ map: sx(sprName), alphaTest: 0.5, side: THREE.DoubleSide, emissive: new THREE.Color(0x303030), emissiveMap: sx(sprName) }));
-    m.position.set(x, 0, z); m.rotation.x = -this.tilt; m.castShadow = this.quality === 'high'; this.group.add(m); return m;
+  // paper, light and fog for a theme
+  theme(T, M = {}) {
+    const U = this.U, dark = !!M.dark, card = T.card;
+    U.uPaper.value.setHex(T.paper || (card ? 0x3a3a4a : 0xf3e8cf));
+    U.uBorder.value.setHex(card ? 0xe4ddce : 0xfffcf2); U.uCut.value.setHex(card ? 0x8a8070 : 0xb8ac94); U.uEdge.value.setHex(card ? 0x6a6458 : 0xcbbd9f);
+    const lamp = T.sun ?? 0.85, amb = T.light ?? 0.95;
+    U.uAmb.value.setHex(0xd8d2cc).multiplyScalar(0.55 + amb * 0.42); U.uLampCol.value.setHex(0xffe6c4).multiplyScalar(0.2 + lamp * 0.3);
+    this.dark(dark, M.lanternOn);
+    this.scene.background.setHex(dark ? 0x000000 : 0x24160c);
   }
-  setPropSprite(m, sprName) { m.material.map = sx(sprName); m.material.emissiveMap = sx(sprName); m.material.needsUpdate = true; }
   // doors opened, chests looted, gates raised
   refresh(state) {
-    this.renderer.shadowMap.needsUpdate = true;
-    if (!this.dyn.doorMeshes) return;
-    for (const [k, m] of Object.entries(this.dyn.doorMeshes)) m.visible = !state.isOpen(k);
-    for (const [k, m] of Object.entries(this.dyn.gateMeshes)) m.visible = !state.isOpen(k);
-    for (const [k, m] of Object.entries(this.dyn.chestMeshes)) this.setPropSprite(m, state.isOpen(k) ? 'chestOpen' : 'chest');
+    if (!this.dyn.doors) return;
+    for (const [k, l] of Object.entries(this.dyn.doors)) this.setVis(l, !state.isOpen(k));
+    for (const [k, l] of Object.entries(this.dyn.gates)) this.setVis(l, !state.isOpen(k));
+    for (const [k, i] of Object.entries(this.dyn.chests)) this.setUV(i, state.isOpen(k) ? 'chestOpen' : 'chest');
   }
   dark(on, lantern) {
-    this.isDark = on;
-    this.hemi.intensity = on ? 0.14 : 0.95; this.sun.intensity = on ? 0 : 0.85;
-    this.lantern.intensity = on ? (lantern ? 7 : 2) : 0; this.lantern.distance = lantern ? 10 : 4;
+    this.isDark = on; this.hasLantern = !!lantern; const U = this.U;
+    if (on) { U.uAmb.value.setHex(0x282830); U.uLampCol.value.setHex(0x000000); U.uLantern.value.w = lantern ? 1.5 : 0.7; U.uLanternR.value = lantern ? 8.5 : 4; }
+    else U.uLantern.value.w = 0;
+    U.uFog.value.set(on ? (this.camDist || 15) - 3 : 10, on ? (this.camDist || 15) + (lantern ? 5 : 2) : 20, on ? 1 : 0);
+    for (const [m, c] of this.envMats || []) m.color.setHex(c).multiplyScalar(on ? 0.06 : 1);
   }
 
-  // ---------------------------------------------------------------- people (billboards from sprite sheets)
+  // ---------------------------------------------------------------- people (cut-out cards from sprite sheets)
   actor(id, look) { let a = this.actors.get(id); if (!a) { a = new Actor(this, look); this.actors.set(id, a); } return a; }
   drop(id) { const a = this.actors.get(id); if (a) { a.dispose(); this.actors.delete(id); } }
-  pitch() { return Math.PI / 2 - (this.aspect < 1 ? 0.95 : 0.86); }    // billboard lean: matches the camera elevation in frame()
+  pitch() { return Math.PI / 2 - (this.aspect < 1 ? 0.95 : 0.86); }    // how far a standing card leans from the view: matches frame()
+
+  // ---------------------------------------------------------------- pop-ups rising and folding
+  foldAll(on) { this.fold = on; this.recheck = true; if (!on) this.entry = true; this.dirty = true; }
+  updatePieces(dt) {
+    const P = this.P; if (!P) return;
+    const c = this.camera;
+    if (this.recheck || this.cam.distanceToSquared(this.lastCheck) > 0.05) {
+      this.recheck = false; this.lastCheck.copy(this.cam);
+      c.updateMatrixWorld(); const e = this.pm.multiplyMatrices(c.projectionMatrix, c.matrixWorldInverse).elements;
+      const entry = this.entry; this.entry = false; const fx = this.cam.x, fz = this.cam.z;
+      for (let i = 0; i < P.n; i++) {
+        let t = 0;
+        if (!this.fold && !(P.flags[i] & FLAT)) {
+          // project both ends of the card: a long wall pops up as soon as any of it is in view
+          const y = P.cy[i], m = P.tgt[i] ? 1.06 : 0.94;   // a little hysteresis so pieces on the border don't flicker up and down
+          let lo = 9, hi = -9, ylo = 9, yhi = -9;
+          for (let s2 = -1; s2 <= 1; s2 += 2) {
+            const x = P.cx[i] + P.hx[i] * s2, z = P.cz[i] + P.hz[i] * s2, w = e[3] * x + e[7] * y + e[11] * z + e[15];
+            if (w < 0.1) { lo = -9; hi = 9; continue; }
+            const nx = (e[0] * x + e[4] * y + e[8] * z + e[12]) / w, ny = (e[1] * x + e[5] * y + e[9] * z + e[13]) / w;
+            lo = Math.min(lo, nx); hi = Math.max(hi, nx); ylo = Math.min(ylo, ny); yhi = Math.max(yhi, ny);
+          }
+          t = (lo < m && hi > -m && ylo < m && yhi > -m - 0.05) ? 1 : 0;
+        }
+        if (t !== P.tgt[i] || (entry && t)) {
+          P.tgt[i] = t;
+          P.delay[i] = entry ? Math.hypot(P.cx[i] - fx, P.cz[i] - fz) * 0.022 + Math.random() * 0.05 : t ? Math.random() * 0.06 : 0;
+          if (!P.act[i]) { P.act[i] = 1; P.active.push(i); }
+        }
+      }
+    }
+    const L = P.active; if (!L.length) { this.animating = false; return; }
+    const rise = P.rise.array;
+    for (let k = L.length - 1; k >= 0; k--) {
+      const i = L[k];
+      if (P.delay[i] > 0) { P.delay[i] -= dt; continue; }
+      const t = P.tgt[i]; let v = P.vel[i] + (STIFF * (t - rise[i]) - DAMP * P.vel[i]) * dt, x = rise[i] + v * dt;
+      if (x < 0) { x = 0; v = -v * 0.25; }
+      if (Math.abs(t - x) < 0.003 && Math.abs(v) < 0.03) { x = t; v = 0; P.act[i] = 0; L[k] = L[L.length - 1]; L.pop(); }
+      rise[i] = x; P.vel[i] = v;
+    }
+    P.rise.needsUpdate = true; this.animating = true; this.dirty = true;
+  }
 
   // ---------------------------------------------------------------- per frame
   frame(dt, focus) {
-    this.time += dt;
-    if (this.water) this.water.uniforms.time.value = this.time;
+    this.time += dt; this.U.uTime.value = this.time;
     const portrait = this.aspect < 1;
     const base = this.camDist || 15; const dist = portrait ? base * 1.15 : base, el = portrait ? 0.95 : 0.86;      // camera distance and elevation angle
-    const want = new THREE.Vector3(focus.x, 0, focus.z);
-    if (!this.camReady) { this.cam.copy(want); this.camReady = true; } else this.cam.lerp(want, Math.min(1, dt * 8));
-    this.settled = this.cam.distanceToSquared(want) < 1e-5;   // the camera has stopped gliding
-    const c = this.camera; c.fov = portrait ? 38 : 30; c.updateProjectionMatrix();
+    const want = this._want || (this._want = new THREE.Vector3()); want.set(focus.x, 0, focus.z);
+    if (!this.camReady) { this.cam.copy(want); this.camReady = true; this.recheck = true; } else this.cam.lerp(want, Math.min(1, dt * 8));
+    const c = this.camera; const fov = portrait ? 38 : 30; if (c.fov !== fov) { c.fov = fov; c.updateProjectionMatrix(); }
     c.position.set(this.cam.x, this.cam.y + Math.sin(el) * dist, this.cam.z + Math.cos(el) * dist); c.lookAt(this.cam.x, 0.3, this.cam.z);
-    this.tilt = Math.PI / 2 - el;
-    // snap the shadow camera to whole shadow-map texels so shadows don't shimmer while the camera glides
-    // (whole tiles are 64 texels, so snapping to tiles keeps texels aligned; the shadow box is 32 tiles wide, so moving it only every 4 tiles still covers the view)
-    const sx0 = Math.round(this.cam.x / 4) * 4, sz0 = Math.round(this.cam.z / 4) * 4;   // every 4 tiles: one shadow redraw per few steps, not per step
-    if (sx0 !== this.sunX || sz0 !== this.sunZ) {
-      this.sunX = sx0; this.sunZ = sz0;
-      this.sun.position.set(sx0 - 10, 16, sz0 + 3); this.sun.target.position.set(sx0, 0, sz0); this.sun.target.updateMatrixWorld();
-      this.renderer.shadowMap.needsUpdate = true;
-    }
-    this.lantern.position.set(focus.x, 1.4, focus.z + 0.3);
-    for (const a of this.actors.values()) a.face(this.tilt);
-    if (this.dyn && this.dyn.fire) this.dyn.fire.material.emissiveIntensity = 0.9 + Math.sin(this.time * 14) * 0.15;
-    if (this.post) { const f = 0.52; this.tsH.uniforms.focus.value = f; this.tsV.uniforms.focus.value = f; this.tsH.uniforms.band.value = this.tsV.uniforms.band.value = portrait ? 0.16 : 0.13; }
+    this.updatePieces(dt);
+    let busy = false; for (const a of this.actors.values()) busy = a.tick(dt) || busy;
+    this.settled = this.cam.distanceToSquared(want) < 1e-5 && !this.animating && !busy;   // nothing is gliding, rising or hopping
+    this.U.uSpot.value.x = this.cam.x - 3; this.U.uSpot.value.y = this.cam.z - 2;
+    this.U.uLantern.value.x = focus.x; this.U.uLantern.value.y = 1.4; this.U.uLantern.value.z = focus.z + 0.3;
+    if (this.post) this.grade.uniforms.band.value = portrait ? 0.17 : 0.15;
   }
   render() { if (this.composer) this.composer.render(); else this.renderer.render(this.scene, this.camera); }
   fade(v) { this.dirty = true; if (this.composer) this.grade.uniforms.fade.value = v; this.canvas.style.opacity = this.composer ? 1 : String(1 - v); }
   flash(v) { this.dirty = true; if (this.composer) this.grade.uniforms.flash.value = v; }
+
+  // ---------------------------------------------------------------- the page turn (map changes)
+  // out: the pop-ups fold flat, the picture is copied onto a paper leaf over the right half (and a still of the left
+  // half). in: the new map is built and drawn flat under it, the leaf turns over to the left, the new pop-ups rise.
+  initTurn() {
+    const scr = this.canvas.parentElement; if (!scr) return;
+    const T = this.turnEl = document.createElement('div'); T.className = 'turn hidden';
+    T.innerHTML = '<canvas class="tleft"></canvas><div class="leaf"><canvas class="lfront"></canvas><div class="lshade"></div><div class="lback"></div></div>';
+    scr.insertBefore(T, this.canvas.nextSibling);
+  }
+  async turnOut() {
+    if (!this.turnEl) return;
+    this.foldAll(true);
+    const t0 = performance.now(); while (performance.now() - t0 < 320 && (this.animating || performance.now() - t0 < 140)) await raf();
+    const T = this.turnEl, w = this.canvas.width, h = this.canvas.height, hw = Math.floor(w / 2);
+    const left = T.querySelector('.tleft'), front = T.querySelector('.lfront');
+    for (const [cv, sx, sw] of [[left, 0, hw], [front, hw, w - hw]]) { if (cv.width !== sw || cv.height !== h) { cv.width = sw; cv.height = h; } }
+    this.render();   // draw and copy in the same task, so the drawing buffer is still there
+    left.getContext('2d').drawImage(this.canvas, 0, 0, hw, h, 0, 0, hw, h);
+    front.getContext('2d').drawImage(this.canvas, hw, 0, w - hw, h, 0, 0, w - hw, h);
+    T.style.setProperty('--split', (hw / w * 100) + '%');
+    T.classList.remove('hidden');
+  }
+  async turnIn() {
+    if (!this.turnEl || this.turnEl.classList.contains('hidden')) return;
+    const T = this.turnEl, leaf = T.querySelector('.leaf'), left = T.querySelector('.tleft'), shade = T.querySelector('.lshade'), back = T.querySelector('.lback');
+    await raf(); await raf();
+    this.foldAll(false);
+    const D = 620, ease = 'cubic-bezier(.42,.02,.38,1)';
+    const a = leaf.animate([{ transform: 'rotateY(0deg)' }, { transform: 'rotateY(-180deg)' }], { duration: D, easing: ease, fill: 'forwards' });
+    shade.animate([{ opacity: 0 }, { opacity: 0.55 }], { duration: D / 2, easing: 'ease-in', fill: 'forwards' });
+    // faces swap half way (not left to backface-visibility, which Safari handles differently)
+    const front = T.querySelector('.lfront');
+    back.animate([{ opacity: 0 }, { opacity: 0, offset: 0.49 }, { opacity: 1, offset: 0.5 }, { opacity: 1, offset: 0.6 }, { opacity: 0 }], { duration: D, easing: ease, fill: 'forwards' });
+    front.animate([{ opacity: 1 }, { opacity: 1, offset: 0.49 }, { opacity: 0, offset: 0.5 }, { opacity: 0 }], { duration: D, easing: ease, fill: 'forwards' });
+    shade.animate([{ visibility: 'visible' }, { visibility: 'visible', offset: 0.49 }, { visibility: 'hidden', offset: 0.5 }, { visibility: 'hidden' }], { duration: D, easing: ease, fill: 'forwards' });
+    left.animate([{ opacity: 1 }, { opacity: 1, offset: 0.48 }, { opacity: 0, offset: 0.5 }, { opacity: 0 }], { duration: D, fill: 'forwards' });   // the left still goes once the leaf stands up
+    try { await a.finished; } catch (e) { /* cancelled */ }
+    T.classList.add('hidden'); for (const el of [leaf, shade, back, left, front]) el.getAnimations().forEach((x) => x.cancel());
+    this.dirty = true;
+  }
+}
+const raf = () => new Promise((r) => requestAnimationFrame(() => r()));
+
+// the base card geometry: face (part 0), tab (part 1), lid (part 2); position = (x in -0.5..0.5, y in 0..1, part)
+function cardGeometry() {
+  const pos = [], idx = [];
+  for (let part = 0; part < 3; part++) { const i = pos.length / 3; pos.push(-0.5, 0, part, 0.5, 0, part, 0.5, 1, part, -0.5, 1, part); idx.push(i, i + 1, i + 2, i, i + 2, i + 3); }
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setIndex(idx); return g;
 }
 
+// paper: cream for towns and the wilds; a dark card (charcoal, indigo, plum) for caves and dungeons
 const THEMES = {
-  town: { floor: 'grass', grass: 1, wall: 'wallStone', wallTop: 'wallStoneTop', sky: 0x86b0e0 },
-  village: { floor: 'grass', grass: 1, wall: 'wallStone', wallTop: 'wallStoneTop', sky: 0x86b0e0 },
-  city: { floor: 'pave', wall: 'wallStone', wallTop: 'wallStoneTop', sky: 0x86b0e0, grass: 1 },
-  pavilion: { floor: 'grass', grass: 1, wall: 'wallStone', wallTop: 'wallStoneTop', sky: 0x9ac0e8 },
-  temple: { floor: 'grass', grass: 1, wall: 'templeWall', wallTop: 'templeWallTop', sky: 0x9ac0e8, pave: 'pave' },
-  desert: { floor: 'sand', wall: 'tombWall', wallTop: 'tombWallTop', sky: 0xe8c890, side: 'sandSide' },
-  forest: { floor: 'forestFloor', grass: 1, wall: 'rockSide', wallTop: 'rockTop', sky: 0x3a6a4a, light: 0.75, sun: 0.6 },
-  fort: { floor: 'road', wall: 'fortWall', wallTop: 'palisadeTop', sky: 0x5a6a80, fortFence: 1 },
-  sea: { floor: 'caveFloor', wall: 'wallCave', wallTop: 'wallCaveTop', sky: 0x0a1a2a, light: 0.55, sun: 0.35 },
-  cave: { floor: 'caveFloor', wall: 'wallCave', wallTop: 'wallCaveTop', sky: 0x0a0a12, light: 0.55, sun: 0.35 },
-  tower: { floor: 'floor', wall: 'templeWall', wallTop: 'templeWallTop', sky: 0x1a1008, light: 0.75, sun: 0.5, pave: 'floor' },
-  tomb: { floor: 'tombFloor', wall: 'tombWall', wallTop: 'tombWallTop', sky: 0x000000 },
-  ice: { floor: 'snow', wall: 'iceWall', wallTop: 'iceWallTop', sky: 0x1a2a3a, light: 0.8, sun: 0.5 },
-  snowpeak: { floor: 'snow', wall: 'snowRockSide', wallTop: 'snowRock', sky: 0xa8c8e8 },
-  lair: { floor: 'lairFloor', wall: 'lairWall', wallTop: 'lairWallTop', sky: 0x08040c, light: 0.5, sun: 0.3 },
+  town: { floor: 'grass', grass: 1, wall: 'wallStone', wallTop: 'wallStoneTop', paper: 0xf3e8cf },
+  village: { floor: 'grass', grass: 1, wall: 'wallStone', wallTop: 'wallStoneTop', paper: 0xf3e8cf },
+  city: { floor: 'pave', wall: 'wallStone', wallTop: 'wallStoneTop', grass: 1, paper: 0xf3e8cf },
+  pavilion: { floor: 'grass', grass: 1, wall: 'wallStone', wallTop: 'wallStoneTop', paper: 0xf1ead8 },
+  temple: { floor: 'grass', grass: 1, wall: 'templeWall', wallTop: 'templeWallTop', pave: 'pave', paper: 0xf3e8cf },
+  desert: { floor: 'sand', wall: 'tombWall', wallTop: 'tombWallTop', paper: 0xf2e2c0 },
+  forest: { floor: 'forestFloor', grass: 1, wall: 'rockSide', wallTop: 'rockTop', light: 0.8, sun: 0.65, paper: 0xe6dcc0 },
+  fort: { floor: 'road', wall: 'fortWall', wallTop: 'palisadeTop', fortFence: 1, paper: 0xe8dcc0 },
+  sea: { floor: 'caveFloor', wall: 'wallCave', wallTop: 'wallCaveTop', light: 0.7, sun: 0.5, card: 1, paper: 0x2c3a56 },
+  cave: { floor: 'caveFloor', wall: 'wallCave', wallTop: 'wallCaveTop', light: 0.7, sun: 0.5, card: 1, paper: 0x34343e },
+  tower: { floor: 'floor', wall: 'templeWall', wallTop: 'templeWallTop', light: 0.8, sun: 0.6, pave: 'floor', card: 1, paper: 0x4a3426 },
+  tomb: { floor: 'tombFloor', wall: 'tombWall', wallTop: 'tombWallTop', card: 1, paper: 0x2e261e },
+  ice: { floor: 'snow', wall: 'iceWall', wallTop: 'iceWallTop', light: 0.85, sun: 0.6, card: 1, paper: 0x34465e },
+  snowpeak: { floor: 'snow', wall: 'snowRockSide', wallTop: 'snowRock', paper: 0xeef0f0 },
+  lair: { floor: 'lairFloor', wall: 'lairWall', wallTop: 'lairWallTop', light: 0.65, sun: 0.45, card: 1, paper: 0x261c34 },
 };
 export { THEMES };
 
@@ -439,35 +643,59 @@ const SHEETS = {};
 export function loadImage(src) { return new Promise((res) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => res(null); i.src = src; }); }
 export function registerSheet(key, img) { SHEETS[key] = img; }
 // look = { sheet: key, frames: { down: [[x,y,w,h],...], up: [...], side: [...] } } (side faces right)
+// A person is a die-cut card on its own little tab: it pops up when the map opens and hops a step at a time.
 class Actor {
   constructor(view, look) {
     this.view = view; this.look = look; this.cache = {};
     this.cw = look.cw || 16; this.ch = look.ch || 24;
-    const pw = this.cw / 16, ph = this.ch / 16; const g = new THREE.PlaneGeometry(pw, ph); g.translate(0, ph / 2, 0);
-    this.mat = new THREE.MeshLambertMaterial({ alphaTest: 0.5, side: THREE.DoubleSide, emissive: new THREE.Color(0x404040) });
-    // people use the soft blob below them only: a cast shadow from a flat sprite flickers as walk frames change
-    this.mesh = new THREE.Mesh(g, this.mat); this.mesh.castShadow = false;
-    view.group.add(this.mesh);
-    const b = new THREE.Mesh(new THREE.CircleGeometry(0.32, 12), new THREE.MeshBasicMaterial({ color: 0, transparent: true, opacity: 0.3, depthWrite: false }));
-    b.rotation.x = -Math.PI / 2; this.blob = b; view.group.add(b);
+    const S = view.stretch || 1.3, s = look.scale || 1, k = (this.cw / 16) * s / (this.cw * 4);
+    this.W = (this.cw * 4 + 12) * k; this.H = (this.ch * 4 + 12) * k * S; this.b = 6 * k * S;
+    const base = view.cardGeo, g = new THREE.InstancedBufferGeometry();
+    g.setIndex(Array.from(base.index.array)); g.setAttribute('position', new THREE.Float32BufferAttribute(base.attributes.position.array.slice(), 3));
+    const ia = (a, n) => new THREE.InstancedBufferAttribute(new Float32Array(a), n);
+    this.A = { pos: ia([0, 0, 0, this.b], 4), size: ia([this.W, this.H, 0, 0], 4), uv: ia([0, 0, 1, 1], 4), uv2: ia([0, 0, 1, 1], 4), misc: ia([0, 0, 1, 0], 4), roll: ia([0, 0], 2), rise: ia([0], 1) };
+    for (const [k2, a] of [['iPos', this.A.pos], ['iSize', this.A.size], ['iUV', this.A.uv], ['iUV2', this.A.uv2], ['iMisc', this.A.misc], ['iRoll', this.A.roll], ['iRise', this.A.rise]]) g.setAttribute(k2, a);
+    g.instanceCount = 1;
+    this.mat = view.cardMaterial(null);
+    this.mesh = new THREE.Mesh(g, this.mat); this.mesh.frustumCulled = false; view.group.add(this.mesh);
+    this.blob = new THREE.Mesh(view.blobGeo, view.blobMat); view.group.add(this.blob);
+    this.rise = 0; this.vel = 0; this.delay = 0.15 + Math.random() * 0.12; this.walk = 0; this.px = null; this.pz = null; this.moved = false; this.x = 0; this.z = 0; this.y = 0;
     this.set('down', 0);
   }
   frameTex(dir, i) {
     const k = dir + i; if (this.cache[k]) return this.cache[k];
     const L = this.look, list = L.frames[dir] || L.frames.down, f = list[i % list.length];
-    const img = SHEETS[f[5] || L.sheet]; const W = this.cw, H = this.ch; const c = document.createElement('canvas'); c.width = W; c.height = H; const x = c.getContext('2d');
+    const img = SHEETS[f[5] || L.sheet]; const W = this.cw, H = this.ch; const c = canvasOf(W, H); const x = c.getContext('2d');
     if (img) { x.imageSmoothingEnabled = false; const flip = f[4]; if (flip) { x.translate(W, 0); x.scale(-1, 1); } x.drawImage(img, f[0], f[1], f[2], f[3], Math.floor((W - f[2]) / 2), H - f[3], f[2], f[3]);
       const lg = f[6]; if (lg) { const n = lg.rows, dx = Math.floor((W - f[2]) / 2); x.clearRect(dx, H - n, f[2], n); if (lg.mirror) { x.save(); x.translate(2 * dx + f[2], 0); x.scale(-1, 1); } x.drawImage(img, lg.x, lg.y + f[3] - n, f[2], n, dx, H - n, f[2], n); if (lg.mirror) x.restore(); } }
-    return (this.cache[k] = texOf(c));
+    return (this.cache[k] = texOf(dieCut(c, 4, 6, 5)));
   }
   set(dir, i) {
     let d = dir, flip = false; if (dir === 'left') { d = 'side'; flip = true; } else if (dir === 'right') d = 'side';
-    const t = this.frameTex(d, i); if (this.mat.map !== t) { this.mat.map = t; this.mat.emissiveMap = t; this.mat.needsUpdate = true; if (this.mesh.customDepthMaterial) { this.mesh.customDepthMaterial.map = t; this.mesh.customDepthMaterial.needsUpdate = true; } }
-    const s = this.look.scale || 1; this.mesh.scale.x = flip ? -s : s;
+    const t = this.frameTex(d, i); if (this.mat.uniforms.uAtlas.value !== t) this.mat.uniforms.uAtlas.value = t;
+    const w = flip ? -this.W : this.W; if (this.A.size.array[0] !== w) { this.A.size.array[0] = w; this.A.size.needsUpdate = true; }
   }
-  place(x, z, y = 0) { this.mesh.position.set(x + 0.5, y, z + 0.5); this.blob.position.set(x + 0.5, 0.01 + y, z + 0.5); }
-  // stand upright (so the head never sinks into a wall behind) and stretch to undo the camera's foreshortening
-  face(tilt) { this.mesh.rotation.x = 0; this.mesh.scale.y = (this.look.scale || 1) / Math.cos(tilt); }
+  place(x, z, y = 0) {
+    this.x = x + 0.5; this.z = z + 0.5; this.y = y;
+    if (this.px !== null) { const d = Math.abs(this.x - this.px) + Math.abs(this.z - this.pz); if (d > 0 && d < 1.5) { this.walk += d; this.moved = true; } }
+    this.px = this.x; this.pz = this.z;
+  }
+  // per frame: the pop-up spring and the hop (one hop a tile; it finishes the hop when it stops)
+  tick(dt) {
+    const v = this.view;
+    if (this.delay > 0) this.delay -= dt;
+    else { const t = v.fold ? 0 : 1; this.vel += (STIFF * (t - this.rise) - DAMP * this.vel) * dt; this.rise += this.vel * dt; if (this.rise < 0) { this.rise = 0; this.vel = -this.vel * 0.25; } if (Math.abs(t - this.rise) < 0.003 && Math.abs(this.vel) < 0.03) { this.rise = t; this.vel = 0; } }
+    if (!this.moved) { const f = this.walk % 1; if (f > 0) this.walk = Math.min(Math.ceil(this.walk), this.walk + dt * 6); }
+    this.moved = false;
+    const f = this.walk % 1, hop = Math.sin(f * Math.PI), sgn = Math.floor(this.walk) % 2 ? 1 : -1;
+    const P = this.A.pos.array, y = this.y + hop * 0.09, rl = hop * 0.1 * sgn;
+    if (P[0] !== this.x || P[1] !== y || P[2] !== this.z) { P[0] = this.x; P[1] = y; P[2] = this.z; this.A.pos.needsUpdate = true; }
+    if (this.A.roll.array[0] !== rl) { this.A.roll.array[0] = rl; this.A.roll.needsUpdate = true; }
+    if (this.A.rise.array[0] !== this.rise) { this.A.rise.array[0] = this.rise; this.A.rise.needsUpdate = true; }
+    const s = Math.min(1, Math.max(0, this.rise)) * (1 - hop * 0.25);
+    this.blob.position.set(this.x + 0.1, 0.006 + this.y, this.z - 0.06); this.blob.scale.set(s, 1, s);
+    return f > 0 || this.vel !== 0 || this.delay > 0;
+  }
   visible(v) { this.mesh.visible = v; this.blob.visible = v; }
-  dispose() { this.view.group.remove(this.mesh); this.view.group.remove(this.blob); this.mat.dispose(); for (const t of Object.values(this.cache)) t.dispose(); }
+  dispose() { this.view.group.remove(this.mesh); this.view.group.remove(this.blob); this.mesh.geometry.dispose(); this.mat.dispose(); for (const t of Object.values(this.cache)) t.dispose(); }
 }

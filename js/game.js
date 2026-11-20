@@ -1,13 +1,13 @@
 // The game: where the hero is, walking on tile maps, people and their scripts, chests, doors, encounters, menus,
 // inns, shops, saving and the story's turning points. The view only draws what this holds.
-import { MAPS, PLACES, TILES, L } from './maps.js?v=10';
-import { WORLD, WORLD_W, WORLD_H, PLACE_AT } from './world_map.js?v=10';
-import { ITEMS, SKILLS, SHOPS, ENEMIES, ZONES, zoneAt, ENCOUNTER, RARE, RARE_CHANCE, MONEY_FOE, ART_OF } from './data.js?v=10';
-import { PEOPLE, CAST } from './people_art.js?v=10';
-import { ENEMY_ART, ENEMY_INFO } from './enemy_art.js?v=10';
-import * as R from './rules.js?v=10';
-import { battle } from './battle.js?v=10';
-import { t, STR, getLang, setLang, nameOf } from './ui.js?v=10';
+import { MAPS, PLACES, TILES, L } from './maps.js?v=11';
+import { WORLD, WORLD_W, WORLD_H, PLACE_AT } from './world_map.js?v=11';
+import { ITEMS, SKILLS, SHOPS, ENEMIES, ZONES, zoneAt, ENCOUNTER, RARE, RARE_CHANCE, MONEY_FOE, ART_OF } from './data.js?v=11';
+import { PEOPLE, CAST } from './people_art.js?v=11';
+import { ENEMY_ART, ENEMY_INFO } from './enemy_art.js?v=11';
+import * as R from './rules.js?v=11';
+import { battle } from './battle.js?v=11';
+import { t, STR, getLang, setLang, nameOf } from './ui.js?v=11';
 
 const DIRS = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
 const SAVE_KEYS = ['lq_slot1', 'lq_slot2', 'lq_slot3'];
@@ -169,7 +169,7 @@ export class Game {
     await this.run(async () => {
       const c = this.tile(this.x, this.y);
       // walking off the edge of a town or a dungeon's first floor
-      if (this.map !== 'world' && c === null) { const P = PLACE_AT[this.M.place]; this.audio.sfx('stairs'); await this.fadeOut(); await this.enterWorld(P[0], P[1]); await this.fadeIn(); return; }
+      if (this.map !== 'world' && c === null) { const P = PLACE_AT[this.M.place]; this.audio.sfx('stairs'); await this.turnOut(); await this.enterWorld(P[0], P[1]); await this.turnIn(); return; }
       // poison and swamp
       if (this.hero.poison) { this.hero.hp = Math.max(1, this.hero.hp - 1); this.flashRed(); }
       if (this.map === 'world' && c === 'w') { this.hero.hp = Math.max(1, this.hero.hp - 1); this.flashRed(); }
@@ -184,7 +184,7 @@ export class Game {
         if (/[1-9]/.test(c) && this.M.links && this.M.links[c]) {
           const [to, d] = this.M.links[c]; const T = MAPS[to];
           if (T.dark && !this.has('lantern') && !MAPS[this.map].dark) { await this.ui.say(null, L('前面一片漆黑，伸手不見五指。沒有燈籠是走不下去的。', 'Ahead is pitch black. Without a lantern you cannot go on.')); return; }
-          this.audio.sfx('stairs'); await this.fadeOut(); const [tx, ty] = this.findDigit(T, String(d)); await this.enterMap(to, tx, ty, this.dir); await this.fadeIn(); return;
+          this.audio.sfx('stairs'); await this.turnOut(); const [tx, ty] = this.findDigit(T, String(d)); await this.enterMap(to, tx, ty, this.dir); await this.turnIn(); return;
         }
         // bringing 奕碩 home
         if (this.map === 'longmen' && this.follow === 'yishuo') await this.homecoming();
@@ -195,7 +195,7 @@ export class Game {
   async enterPlace(pid) {
     const P = PLACES[pid], M = MAPS[P.map];
     if (M.dark && !this.has('lantern')) { await this.ui.say(null, L('古墓裡一片漆黑，伸手不見五指。沒有燈籠是進不去的。', 'The tomb is pitch black inside. You cannot go in without a lantern.')); return; }
-    this.audio.sfx('stairs'); await this.fadeOut(); await this.enterMap(P.map); await this.fadeIn();
+    this.audio.sfx('stairs'); await this.turnOut(); await this.enterMap(P.map); await this.turnIn();
   }
 
   // ---------------------------------------------------------------- random encounters
@@ -225,9 +225,9 @@ export class Game {
   async die() {
     this.stats.deaths++;
     const h = this.hero, s = R.stat(h); h.hp = s.maxHp; h.mp = s.maxMp; h.poison = false; h.gold = Math.floor(h.gold / 2); this.ward = 0;
-    await this.fadeOut();
+    await this.turnOut();
     const ls = this.lastSave; await this.enterMap(ls.map, ls.x, ls.y, 'up');
-    await this.fadeIn();
+    await this.turnIn();
     await this.ui.say('baixian', L('……醒了？是過路的人把你抬回來的。銀兩丟了一半，命還在，就好。', '...Awake? Some travellers carried you back. You lost half your silver, but you have your life.'));
   }
 
@@ -478,8 +478,8 @@ export class Game {
   async fieldEffect(S) {
     const h = this.hero;
     if (S.kind === 'heal') { const v = R.rand(S.lo, S.hi), b = h.hp; h.hp = Math.min(R.stat(h).maxHp, h.hp + v); this.audio.sfx('heal'); await this.ui.say(null, L('體力回復了' + (h.hp - b) + '點。', 'Recovered ' + (h.hp - b) + ' HP.')); return false; }
-    if (S.kind === 'home' || S.home) { this.audio.sfx('run'); await this.whiteOut(); await this.fadeOut(); const ls = this.lastSave; await this.enterMap(ls.map, ls.x, ls.y, 'up'); await this.fadeIn(); return true; }
-    if (S.kind === 'escape') { const P = PLACE_AT[this.M.place]; this.audio.sfx('run'); await this.whiteOut(); await this.fadeOut(); await this.enterWorld(P[0], P[1]); await this.fadeIn(); return true; }
+    if (S.kind === 'home' || S.home) { this.audio.sfx('run'); await this.whiteOut(); await this.turnOut(); const ls = this.lastSave; await this.enterMap(ls.map, ls.x, ls.y, 'up'); await this.turnIn(); return true; }
+    if (S.kind === 'escape') { const P = PLACE_AT[this.M.place]; this.audio.sfx('run'); await this.whiteOut(); await this.turnOut(); await this.enterWorld(P[0], P[1]); await this.turnIn(); return true; }
     if (S.kind === 'ward' || S.ward) { this.ward = 150; this.audio.sfx('skill'); await this.ui.say(null, L('一身正氣，弱小的妖物不敢靠近了。', 'Weak creatures will keep their distance.')); return false; }
     return false;
   }
@@ -537,6 +537,9 @@ export class Game {
   // ---------------------------------------------------------------- fades and drawing
   // a quick white-out (light-foot arts): two hard flashes, then the screen burns white before the fade
   async whiteOut() { if (!this.view || this.fast) return; for (const v of [1, 0, 1, 0.3, 1]) { this.view.flash(v); await sleep(45); } this.view.flash(0); }
+  // map changes turn the book's page: the pop-ups fold flat, the page lifts and turns over, the new ones rise
+  async turnOut() { if (!this.view || this.fast) return; await this.view.turnOut(); }
+  async turnIn() { if (!this.view || this.fast) return; await this.view.turnIn(); }
   async fadeOut() { if (!this.view || this.fast) return; for (let i = 1; i <= 6; i++) { this.view.fade(i / 6); await sleep(30); } }
   async fadeIn() { if (!this.view || this.fast) return; for (let i = 5; i >= 0; i--) { this.view.fade(i / 6); await sleep(30); } }
   flashRed() { this.audio.sfx('poison'); const s = document.getElementById('screen'); if (s && !this.fast) { s.classList.remove('red'); void s.offsetWidth; s.classList.add('red'); } }

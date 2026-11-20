@@ -1,5 +1,6 @@
-// Pixel textures for the HD-2D maps, drawn in code with colours from the NES (2C02) palette only.
-// Each tile face is 16x16; billboards (trees, pots, statues, fire) are small typed grids.
+// Pixel textures for the pop-up book maps, drawn in code with colours from the NES (2C02) palette only.
+// Each tile face is 16x16 (printed on the page, or on the walls' cards); pop-up pieces (trees, pots, statues, fire) are
+// small typed grids, and mountains, waves and the world map's towns and caves are drawn with shapes (POP).
 export const NES = [
   0x7C7C7C, 0x0000FC, 0x0000BC, 0x4428BC, 0x940084, 0xA80020, 0xA81000, 0x881400, 0x503000, 0x007800, 0x006800, 0x005800, 0x004058, 0x000000, 0x000000, 0x000000,
   0xBCBCBC, 0x0078F8, 0x0058F8, 0x6844FC, 0xD800CC, 0xE40058, 0xF83800, 0xE45C10, 0xAC7C00, 0x00B800, 0x00A800, 0x00A844, 0x008888, 0x000000, 0x000000, 0x000000,
@@ -407,5 +408,80 @@ export const SPR = {
     '..kkkkkkkkkkkk..',
   ], { k: 0x0D, W: 0x30, G: 0x10 }),
 };
+// ---------------------------------------------------------------- pop-up pieces drawn with shapes
+// paint(w, h, fn): fn gets a little painter (rect, poly, px) working in NES indexes; afterwards every empty pixel
+// next to the picture becomes the black outline, like the typed sprites.
+function paint(w, h, fn, outline = 0x0D) {
+  const b = new Int16Array(w * h).fill(-1);
+  const put = (x, y, c) => { x |= 0; y |= 0; if (x >= 0 && y >= 0 && x < w && y < h && c >= 0) b[y * w + x] = c; };
+  const P = {
+    px: put,
+    rect(x, y, ww, hh, c) { for (let j = 0; j < hh; j++) for (let i = 0; i < ww; i++) put(x + i, y + j, typeof c === 'function' ? c(i, j, x + i, y + j) : c); },
+    // filled polygon (scanline, pixel centres)
+    poly(pts, c) {
+      const ys = pts.map((p) => p[1]), y0 = Math.max(0, Math.floor(Math.min(...ys))), y1 = Math.min(h - 1, Math.ceil(Math.max(...ys)));
+      for (let y = y0; y <= y1; y++) {
+        const yc = y + 0.5, xs = [];
+        for (let i = 0; i < pts.length; i++) { const [ax, ay] = pts[i], [bx, by] = pts[(i + 1) % pts.length]; if ((ay <= yc && by > yc) || (by <= yc && ay > yc)) xs.push(ax + (yc - ay) / (by - ay) * (bx - ax)); }
+        xs.sort((a, b2) => a - b2);
+        for (let k = 0; k + 1 < xs.length; k += 2) for (let x = Math.ceil(xs[k] - 0.5); x <= Math.floor(xs[k + 1] - 0.5); x++) put(x, y, typeof c === 'function' ? c(x, y) : c);
+      }
+    },
+  };
+  fn(P);
+  if (outline >= 0) { const o = b.slice(); for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { if (b[y * w + x] >= 0) continue; if ((x > 0 && b[y * w + x - 1] >= 0) || (x < w - 1 && b[y * w + x + 1] >= 0) || (y > 0 && b[(y - 1) * w + x] >= 0) || (y < h - 1 && b[(y + 1) * w + x] >= 0)) o[y * w + x] = outline; } b.set(o); }
+  return face(1, (i, j) => b[j * w + i], w, h);
+}
+// patterns (x, y) -> NES index
+const roofP = (d, m, l) => (x, y) => (y % 3 === 2 ? d : (x + ((y / 3) | 0) * 2) % 4 === 0 ? d : y % 3 === 0 ? l : m);
+const brickP = (mortar, a, b2) => (x, y) => { const row = y >> 1, off = row % 2 ? 2 : 0; return (y % 2 === 1 || (x + off) % 4 === 3) ? mortar : ((x * 7 + y * 3) % 5 === 0 ? b2 : a); };
+const plankP = (d, a) => (x) => (x % 3 === 2 ? d : a);
+const plasterP = (x, y) => (y === 0 ? 0x07 : 0x36);
+function house(P, x, base, w, wallH, roofH, roof, door = true) {
+  P.rect(x, base - wallH, w, wallH, plasterP);
+  if (door) P.rect(x + (w >> 1) - 1, base - 3, 2, 3, 0x07);
+  if (w > 7) { P.rect(x + 1, base - wallH + 1, 2, 1, 0x0D); P.rect(x + w - 3, base - wallH + 1, 2, 1, 0x0D); }
+  const top = base - wallH - roofH;
+  P.poly([[x - 1.5, base - wallH], [x + w + 1.5, base - wallH], [x + w - 1, top], [x + 1, top]], roofP(...roof));
+  P.rect(x + 1, top - 1, w - 2, 1, roof[0]);
+}
+const RED = [0x07, 0x16, 0x26], BLUE = [0x02, 0x12, 0x21], GREEN = [0x0B, 0x1A, 0x2A], THATCH = [0x08, 0x18, 0x28], GOLD = [0x07, 0x28, 0x38], DARKR = [0x0D, 0x08, 0x07], PURPLE = [0x0D, 0x04, 0x13];
+const rockP = (x, y) => ((x * 3 + y * 5) % 11 === 0 ? 0x07 : (x + y * 2) % 7 === 0 ? 0x27 : 0x17);
+const greyRockP = (x, y) => ((x * 3 + y * 5) % 11 === 0 ? 0x2D : (x + y * 2) % 7 === 0 ? 0x10 : 0x00);
+function mountain(snow) {
+  return paint(34, 24, (P) => {
+    // two shaded faces: lit left, shadowed right, with ridge streaks
+    P.poly([[1, 23], [17, 1.5], [17, 23]], (x, y) => (snow && y < 9 + ((x * 5) % 3) ? 0x30 : snow ? ((x + y) % 6 === 0 ? 0x10 : 0x00) : rockP(x, y)));
+    P.poly([[17, 1.5], [33, 23], [17, 23]], (x, y) => (snow && y < 8 + ((x * 7) % 3) ? 0x31 : snow ? ((x + y) % 5 === 0 ? 0x00 : 0x2D) : ((x * 3 + y * 5) % 9 === 0 ? 0x08 : 0x07)));
+    P.poly([[6, 23], [11, 13], [14, 23]], snow ? 0x10 : 0x27);
+    P.poly([[22, 23], [26, 15], [30, 23]], snow ? 0x2D : 0x08);
+  });
+}
+export const POP = {
+  peak: () => mountain(false),
+  snowpeak: () => mountain(true),
+  // a strip of paper waves (blue card, white crests)
+  wave: () => paint(20, 6, (P) => {
+    for (let i = 0; i < 2; i++) { const x0 = 1 + i * 9; P.poly([[x0, 5], [x0 + 2, 2], [x0 + 5, 0.5], [x0 + 8, 2], [x0 + 6, 2.5], [x0 + 5, 5]], (x, y) => (y < 2 ? 0x30 : 0x21)); }
+    P.rect(1, 4, 18, 2, 0x11);
+  }),
+  // world-map places: a back layer and a front layer each, stood one behind the other
+  town_b: () => paint(32, 18, (P) => { house(P, 2, 17, 9, 5, 5, RED); house(P, 12, 17, 8, 6, 6, BLUE); house(P, 22, 17, 8, 5, 5, GREEN); }),
+  town_f: () => paint(34, 9, (P) => { P.rect(1, 2, 32, 6, brickP(0x0D, 0x10, 0x00)); for (let x = 1; x < 33; x += 4) P.rect(x, 1, 2, 1, 0x10); P.rect(14, 3, 6, 5, 0x0D); P.rect(15, 4, 4, 4, 0x07); }),
+  city_b: () => paint(34, 24, (P) => { house(P, 3, 23, 9, 6, 5, RED); house(P, 13, 23, 9, 8, 7, GOLD); house(P, 23, 23, 8, 6, 5, BLUE); P.rect(1, 9, 4, 14, brickP(0x0D, 0x10, 0x00)); P.rect(29, 9, 4, 14, brickP(0x0D, 0x10, 0x00)); P.poly([[0, 9], [6, 9], [3, 5]], roofP(...RED)); P.poly([[28, 9], [34, 9], [31, 5]], roofP(...RED)); }),
+  city_f: () => paint(36, 11, (P) => { P.rect(1, 3, 34, 7, brickP(0x0D, 0x10, 0x00)); for (let x = 1; x < 35; x += 3) P.rect(x, 1, 2, 2, 0x10); P.rect(14, 4, 8, 6, 0x0D); P.rect(15, 5, 6, 5, 0x17); P.rect(17, 5, 2, 5, 0x07); }),
+  village_b: () => paint(30, 16, (P) => { house(P, 2, 15, 10, 5, 6, THATCH); house(P, 17, 15, 10, 4, 5, THATCH); }),
+  village_f: () => paint(32, 7, (P) => { for (let x = 1; x < 31; x += 3) P.rect(x, 1, 1, 6, 0x17); P.rect(1, 2, 30, 1, 0x07); P.rect(1, 4, 30, 1, 0x07); }),
+  pavilion: () => paint(30, 26, (P) => { P.rect(3, 22, 24, 3, plankP(0x07, 0x17)); for (const x of [6, 14, 22]) P.rect(x, 11, 2, 11, 0x06); P.poly([[0, 12], [30, 12], [25, 5], [5, 5]], roofP(...BLUE)); P.poly([[6, 5], [24, 5], [18, 1], [12, 1]], roofP(...BLUE)); }),
+  temple: () => paint(34, 26, (P) => { P.rect(5, 15, 24, 9, (x, y) => (x % 6 === 0 ? 0x07 : 0x16)); P.rect(14, 18, 6, 6, 0x07); P.rect(3, 23, 28, 2, 0x10); P.poly([[0, 15], [34, 15], [29, 9], [5, 9]], roofP(...GOLD)); P.rect(9, 6, 16, 3, (x, y) => (x % 4 === 0 ? 0x07 : 0x16)); P.poly([[6, 7], [28, 7], [24, 2], [10, 2]], roofP(...GOLD)); }),
+  tower: () => paint(20, 42, (P) => { for (let i = 0; i < 5; i++) { const w = 12 - i * 2, x = 10 - w / 2, base = 41 - i * 8; P.rect(x, base - 5, w, 5, (xx) => (xx % 3 === 0 ? 0x07 : 0x16)); P.poly([[x - 3, base - 5], [x + w + 3, base - 5], [x + w, base - 8], [x, base - 8]], roofP(...GREEN)); } P.rect(9, 0, 2, 3, 0x28); }),
+  fort_b: () => paint(16, 28, (P) => { P.rect(4, 8, 8, 19, plankP(0x07, 0x17)); P.rect(3, 6, 10, 3, 0x08); P.poly([[1, 7], [15, 7], [8, 1]], roofP(...DARKR)); P.rect(7, 12, 2, 2, 0x0D); }),
+  fort_f: () => paint(34, 14, (P) => { for (let x = 1; x < 33; x += 2) { P.rect(x, 3, 2, 10, plankP(0x07, 0x17)); P.poly([[x, 3], [x + 2, 3], [x + 1, 1]], 0x17); } P.rect(1, 6, 32, 1, 0x08); P.rect(14, 7, 6, 6, 0x0D); }),
+  desertfort_b: () => paint(14, 26, (P) => { P.rect(2, 4, 10, 21, brickP(0x08, 0x18, 0x27)); for (let x = 2; x < 12; x += 3) P.rect(x, 2, 2, 2, 0x18); P.rect(6, 9, 2, 3, 0x0D); }),
+  desertfort_f: () => paint(34, 14, (P) => { P.rect(1, 3, 32, 10, brickP(0x08, 0x18, 0x27)); for (let x = 1; x < 33; x += 4) P.rect(x, 1, 2, 2, 0x18); P.rect(14, 6, 6, 7, 0x0D); }),
+  tomb: () => paint(30, 22, (P) => { P.rect(1, 15, 28, 6, brickP(0x08, 0x18, 0x27)); P.rect(5, 9, 20, 6, brickP(0x08, 0x18, 0x27)); P.rect(9, 4, 12, 5, brickP(0x08, 0x18, 0x27)); P.rect(12, 1, 6, 3, 0x18); P.rect(12, 15, 6, 6, 0x0D); }),
+  cave: () => paint(32, 22, (P) => { P.poly([[1, 21], [6, 8], [13, 3], [20, 4], [27, 10], [31, 21]], greyRockP); P.poly([[17, 4], [27, 10], [31, 21], [20, 21]], (x, y) => ((x + y) % 5 === 0 ? 0x2D : 0x0D)); P.poly([[10, 21], [11, 14], [16, 11], [21, 14], [22, 21]], 0x0D); P.rect(9, 12, 14, 1, 0x10); }),
+  lair: () => paint(32, 30, (P) => { P.rect(4, 14, 24, 15, brickP(0x0D, 0x03, 0x13)); P.rect(1, 6, 5, 23, brickP(0x0D, 0x03, 0x13)); P.rect(26, 6, 5, 23, brickP(0x0D, 0x03, 0x13)); P.poly([[2, 15], [30, 15], [24, 8], [8, 8]], roofP(...PURPLE)); P.rect(13, 20, 6, 9, 0x24); P.rect(14, 21, 4, 8, 0x34); P.poly([[0, 7], [7, 7], [3.5, 2]], roofP(...PURPLE)); P.poly([[25, 7], [32, 7], [28.5, 2]], roofP(...PURPLE)); }),
+};
 const scache = {};
-export function spr(name) { return scache[name] || (scache[name] = SPR[name]()); }
+export function spr(name) { return scache[name] || (scache[name] = (SPR[name] || POP[name])()); }

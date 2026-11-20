@@ -6,13 +6,13 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
-<meta name="theme-color" content="#000000">
+<meta name="theme-color" content="#3a2414">
 <title>龍門刀客傳 Longmen Quest</title>
-<meta name="description" content="An original 8-bit wuxia RPG at Dragon Quest 1 scale, with HD-2D maps. A side story of the Longmen Twins.">
+<meta name="description" content="An original 8-bit wuxia RPG at Dragon Quest 1 scale, played in a pop-up storybook. A side story of the Longmen Twins.">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="icon" href="icon-192.png">
 <link rel="manifest" href="manifest.webmanifest">
-<link rel="stylesheet" href="style.css?v=10">
+<link rel="stylesheet" href="style.css?v=11">
 <script type="importmap">{ "imports": { "three": "./lib/three.module.min.js" } }</script>
 </head>
 <body>
@@ -22,7 +22,16 @@
     <canvas id="view"></canvas>
     <div id="battle" class="hidden"></div>
     <div id="title">
-      <div class="tbox"><div id="tname">龍門刀客傳</div><div id="tsub">龍門雙奕・番外</div></div>
+      <div class="book">
+        <div class="pages"></div>
+        <div class="cover">
+          <div class="cfront"><div class="cframe">
+            <div id="tname">龍門刀客傳</div><div id="tsub">龍門雙奕・番外</div>
+            <div class="cemb"><img id="temb" alt=""></div>
+          </div></div>
+          <div class="cback"></div>
+        </div>
+      </div>
       <div id="tpress"></div>
     </div>
     <div id="ending" class="hidden"></div>
@@ -32,6 +41,6 @@
   <div id="btns" class="padpart"><div id="btnB">B</div><div id="btnA">A</div></div>
 </div>
 <div id="pad" hidden></div>
-<script type="module" src="js/main.js?v=10"></script>
+<script type="module" src="js/main.js?v=11"></script>
 </body>
 </html>

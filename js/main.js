@@ -1,16 +1,19 @@
 // Boot: build the view, the title screen, the opening, and run the fixed-timestep loop.
-import { View, pickQuality, loadImage, registerSheet } from './view.js?v=10';
-import { Input } from './input.js?v=10';
-import { UI, t, STR, getLang, setLang } from './ui.js?v=10';
-import { Audio } from './audio.js?v=10';
-import { Game, mapName } from './game.js?v=10';
-import { CAST, PEOPLE_IMAGE } from './people_art.js?v=10';
-import { preloadBattleArt } from './battle.js?v=10';
-import { PLACE_AT } from './world_map.js?v=10';
+import { View, pickQuality, loadImage, registerSheet } from './view.js?v=11';
+import { Input } from './input.js?v=11';
+import { UI, t, STR, getLang, setLang } from './ui.js?v=11';
+import { Audio } from './audio.js?v=11';
+import { Game, mapName } from './game.js?v=11';
+import { CAST, PEOPLE_IMAGE } from './people_art.js?v=11';
+import { preloadBattleArt } from './battle.js?v=11';
+import { PLACE_AT } from './world_map.js?v=11';
+import { paperTileURL, deckleURL, woodURL } from './paper.js?v=11';
 
 const params = new URLSearchParams(location.search);
 const NORENDER = params.has('norender');
 setLang(getLang());
+// the paper pictures the windows use (drawn once in code): grain, the deckled edge, the wooden table
+{ const st = document.documentElement.style; st.setProperty('--grain', `url(${paperTileURL()})`); st.setProperty('--deckle', `url(${deckleURL()})`); st.setProperty('--wood', `url(${woodURL()})`); }
 
 const input = new Input(), audio = new Audio();
 const ui = new UI(document.getElementById('ui'), input, audio);
@@ -51,7 +54,7 @@ input.push((k) => {
 });
 
 async function loadArt() {
-  const jobs = [loadImage(PEOPLE_IMAGE).then((i) => registerSheet('npcs', i)), loadImage('assets/enemies.png?v=10').then((i) => registerSheet('enemies', i))];
+  const jobs = [loadImage(PEOPLE_IMAGE).then((i) => registerSheet('npcs', i)), loadImage('assets/enemies.png?v=11').then((i) => registerSheet('enemies', i))];
   for (const [id, c] of Object.entries(CAST)) jobs.push(loadImage(c.sheet).then((i) => registerSheet('cast_' + id, i)));
   await Promise.all(jobs); preloadBattleArt();
 }
@@ -77,8 +80,8 @@ function loop(now) {
   if (rest && talk && G.mode === 'field' && still++ >= 2) { requestAnimationFrame(loop); return; }
   // standing still on the map: 30 frames a second is plenty for the water shimmer and wandering townsfolk
   if (rest && G.mode === 'field' && !G.moving && view.settled && (still++ & 1)) { requestAnimationFrame(loop); return; }
-  if (view && (G.mode === 'field' || G.mode === 'menu' || G.mode === 'title')) {
-    if (G.mode === 'title') titlePan(dt);
+  // (the title is a closed book cover over the whole screen: nothing to draw behind it)
+  if (view && (G.mode === 'field' || G.mode === 'menu')) {
     view.render(); view.dirty = false;
     // weak device: drop the post effects once if the frame rate stays low
     fps = fps * 0.95 + (1 / Math.max(dt, 0.001)) * 0.05;
@@ -88,20 +91,17 @@ function loop(now) {
         slow = 0; fps = 60;
         if (!view.prCap) { view.prCap = 1; view.resize(); }
         else if (view.post) { view.post = false; view.composer = null; }
-        else if (view.renderer.shadowMap.enabled) { view.renderer.shadowMap.enabled = false; view.scene.traverse((o) => { if (o.material) [].concat(o.material).forEach((m) => { m.needsUpdate = true; }); }); }
+        else if (!view.cheap) view.setCheap();
       }
     } else slow = 0;
   }
   requestAnimationFrame(loop);
 }
-let panT = 0;
-function titlePan(dt) { panT += dt; view.frame(dt, { x: 26 + Math.sin(panT * 0.05) * 10, z: 40 + Math.cos(panT * 0.04) * 6 }); }
 
 // ---------------------------------------------------------------- title
 async function title() {
   G.mode = 'title';
-  if (view) { const pl = {}; const { PLACES } = await import('./maps.js?v=10'); for (const [k, [x, y]] of Object.entries(PLACE_AT)) pl[k] = [x, y, PLACES[k].look]; const { WORLD } = await import('./world_map.js?v=10'); view.buildWorld(WORLD, pl, {}); view.camReady = false; }
-  const tl = document.getElementById('title'); tl.classList.remove('hidden');
+  const tl = document.getElementById('title'); tl.classList.remove('hidden', 'open', 'gone');
   audio.play('title');
   for (;;) {
     const auto = Game.slotInfo('auto'); const any = [0, 1, 2].some((i) => Game.slotInfo(i));
@@ -111,18 +111,26 @@ async function title() {
     items.push({ label: getLang() === 'zh' ? 'English' : '中文' });
     const i = await ui.choose(items, { cls: 'titlemenu', cancel: false, ctx: 'title' });
     const pick = items[i].label;
-    if (pick === STR.newgame) { tl.classList.add('hidden'); G.newGame(); await opening(); return; }
-    if (pick === STR.cont) { tl.classList.add('hidden'); G.load(auto.raw); return resume(); }
+    if (pick === STR.newgame) { G.newGame(); await openCover(true); await opening(); return; }
+    if (pick === STR.cont) { G.load(auto.raw); await resume(); return openCover(); }
     if (pick === STR.load) {
       const slots = [0, 1, 2].map((k) => { const s = Game.slotInfo(k); return { label: t(STR.slot) + ' ' + (k + 1), sub: s ? t(STR.lv) + s.lv + ' ' + mapName(s.map) : t(STR.empty), disabled: !s }; });
       const j = await ui.choose(slots, { title: STR.load, ctx: 'loadslot' });
-      if (j >= 0) { tl.classList.add('hidden'); G.load(Game.slotInfo(j).raw); return resume(); }
+      if (j >= 0) { G.load(Game.slotInfo(j).raw); await resume(); return openCover(); }
       continue;
     }
     setLang(getLang() === 'zh' ? 'en' : 'zh'); drawTitle();
   }
 }
-function drawTitle() { document.getElementById('tname').textContent = t(['龍門刀客傳', 'Longmen Quest']); document.getElementById('tsub').textContent = t(['龍門雙奕・番外', 'A Longmen Twins side story']); document.getElementById('tpress').textContent = '© 2026  ' + t(['原創 8-bit 武俠 RPG', 'An original 8-bit wuxia RPG']); }
+// the cover swings open on its spine, showing the first page; then the book fades into the game
+async function openCover(toPage) {
+  const tl = document.getElementById('title'); if (tl.classList.contains('hidden')) return;
+  if (toPage) { const box = document.getElementById('ending'); box.classList.remove('hidden'); box.innerHTML = ''; }
+  tl.classList.add('open'); if (!G.fast) await new Promise((r) => setTimeout(r, 900));
+  tl.classList.add('gone'); if (!G.fast) await new Promise((r) => setTimeout(r, 380));
+  tl.classList.add('hidden'); tl.classList.remove('open', 'gone');
+}
+function drawTitle() { document.getElementById('tname').textContent = t(['龍門刀客傳', 'Longmen Quest']); document.getElementById('tsub').textContent = t(['龍門雙奕・番外', 'A Longmen Twins side story']); document.getElementById('tpress').textContent = '© 2026  ' + t(['原創 8-bit 武俠立體書 RPG', 'An original 8-bit wuxia pop-up book RPG']); const em = document.getElementById('temb'); if (em && CAST.yirui) em.src = CAST.yirui.portrait; }
 async function resume() {
   if (G.map === 'world') await G.enterWorld(G.x, G.y); else await G.enterMap(G.map, G.x, G.y, G.dir);
   G.mode = 'field';
@@ -139,8 +147,11 @@ async function opening() {
   const wait = async (ms) => { const t0 = performance.now(); while (performance.now() - t0 < ms && !skip.v && !G.fast) await new Promise((r) => setTimeout(r, 50)); };
   audio.play('title');
   for (const l of lines) { if (skip.v) break; const p = document.createElement('p'); p.textContent = t(l); box.appendChild(p); await wait(30); p.classList.add('in'); await wait(2800); }
-  await wait(600); off(); box.classList.add('hidden'); box.innerHTML = '';
+  await wait(600); off();
+  // the prologue page fades and the map spread opens under it, its pop-ups rising
   await G.enterMap('longmen', 4, 7, 'down'); G.mode = 'field';
+  box.classList.add('fadeout'); if (!G.fast) await new Promise((r) => setTimeout(r, 450));
+  box.classList.add('hidden'); box.classList.remove('fadeout'); box.innerHTML = '';
   await G.run(async () => {
     await ui.say('oldman', [ '大少爺！二少爺在河邊被黑風寨的人擄走了！', 'Young master! The Black Wind bandits took your brother by the river!' ]);
     await ui.say('oldman', [ '聽雨樓的白先生消息最靈通，快去問問他吧！聽雨樓就在鎮子北邊正中。', 'Mr Bai at the Listening Rain House always knows the news. Ask him! It is the big house at the north of town.' ]);
