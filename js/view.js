@@ -12,9 +12,9 @@ import * as THREE from 'three';
 import { EffectComposer } from '../lib/addons/EffectComposer.js';
 import { RenderPass } from '../lib/addons/RenderPass.js';
 import { ShaderPass } from '../lib/addons/ShaderPass.js';
-import { tex, spr, FACES, SPR, POP } from './tiles.js?v=15';
-import { TILES } from './maps.js?v=15';
-import { grainCanvas, woodCanvas, edgeCanvas, dieCut } from './paper.js?v=15';
+import { tex, spr, FACES, SPR, POP } from './tiles.js?v=16';
+import { TILES } from './maps.js?v=16';
+import { grainCanvas, woodCanvas, edgeCanvas, dieCut } from './paper.js?v=16';
 
 // the one full-screen pass: a light depth-of-field blur away from the focus band (one pass, 9 taps where blurred,
 // 1 tap in focus), the linear -> sRGB step and the grade (warm tint, vignette, fades and flashes)
@@ -346,7 +346,7 @@ export class View {
   }
 
   // the overworld: rows of tile letters plus the places and which gates are open
-  buildWorld(W, places, open) {
+  buildWorld(W, places, open, signs = []) {
     this.clear(); const rows = W; const H = rows.length, Wd = rows[0].length; this.size = [Wd, H];
     const r = mulberry(5), dyn = this.dyn; dyn.palisade = []; dyn.rope = []; dyn.causeway = [];
     const LAND = { '.': 'grass', '=': 'road', f: 'forestFloor', h: 'grass', s: 'sand', w: 'swamp', n: 'snow', M: 'grass', N: 'snow', G: 'road' };
@@ -371,6 +371,7 @@ export class View {
       if (c === '.' && r() < 0.02) this.sprite('bush', x + 0.5, z + 0.6, 0.6);
     } }
     for (const [x, z, look] of Object.values(places)) this.placeModel(x, z, look);
+    for (const [x, z] of signs) this.sprite('signpost', x + 0.5, z + 0.6, 0.85);
     this.printGround(0, 0, Wd, H, (x, z) => ground[z][x]);
     this.finishPieces(); this.setOpen(open);
     this.camDist = 21 * ZOOM; this.theme({ paper: 0xf3e8cf }); this.dark(false);
@@ -430,6 +431,7 @@ export class View {
       else if (c === 'p') this.sprite('pot', cx, z + 0.6, 0.7, { yaw });
       else if (c === 'r') this.sprite('rock', cx, z + 0.6, 0.85, { yaw });
       else if (c === 'u') this.sprite('statue', cx, z + 0.5, 0.9);
+      else if (c === 'y') this.sprite(/town|village|city|forest|desert|temple|pavilion/.test(M.theme) ? 'signpost' : 'stele', cx, z + 0.55, 0.8);
       else if (c === 'l') this.sprite('lamp', cx, z + 0.5, 0.9);
       else if (c === '&') { const R0 = this.rects.brazier, bh = R0.ah / R0.aw * 0.7 * this.stretch; this.sprite('brazier', cx, z + 0.5, 0.7); this.sprite('fire', cx, z + 0.52, 0.55, { y: bh * 0.62, flags: GLOW | NOSHADOW | NOTAB }); }
       else if (c === 'w') this.sprite('well', cx, z + 0.6, 0.9);

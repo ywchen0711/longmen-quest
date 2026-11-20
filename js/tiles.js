@@ -458,6 +458,19 @@ function mountain(snow) {
   });
 }
 export const POP = {
+  // a wooden signpost at a fork: a post and two arrow boards with lines of ink
+  signpost: () => paint(18, 22, (P) => {
+    P.rect(8, 4, 2, 18, (i) => (i ? 0x07 : 0x17));
+    P.poly([[1, 2], [14, 2], [17, 5], [14, 8], [1, 8]], (x, y) => (y === 2 || y === 7 ? 0x17 : 0x27));
+    P.poly([[16, 10], [3, 10], [0, 13], [3, 16], [16, 16]], (x, y) => (y === 10 || y === 15 ? 0x17 : 0x37));
+    for (const [x, y, w] of [[3, 4, 9], [3, 6, 6], [5, 12, 9], [5, 14, 6]]) P.rect(x, y, w, 1, 0x0D);
+  }),
+  // a stone tablet with carved lines (dungeons)
+  stele: () => paint(14, 20, (P) => {
+    P.rect(1, 17, 12, 3, 0x00);
+    P.poly([[2, 17], [2, 3], [4, 1], [10, 1], [12, 3], [12, 17]], (x, y) => ((x * 3 + y * 5) % 13 === 0 ? 0x00 : x > 9 ? 0x2D : 0x10));
+    for (let y = 5; y < 15; y += 3) P.rect(4, y, 6, 1, 0x2D);
+  }),
   peak: () => mountain(false),
   snowpeak: () => mountain(true),
   // a strip of paper waves (blue card, white crests)

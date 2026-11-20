@@ -1,17 +1,18 @@
 // The game: where the hero is, walking on tile maps, people and their scripts, chests, doors, encounters, menus,
 // inns, shops, saving and the story's turning points. The view only draws what this holds.
-import { MAPS, PLACES, TILES, L } from './maps.js?v=15';
-import { WORLD, WORLD_W, WORLD_H, PLACE_AT } from './world_map.js?v=15';
-import { ITEMS, SKILLS, SHOPS, ENEMIES, ZONES, zoneAt, ENCOUNTER, RARE, RARE_CHANCE, MONEY_FOE, ART_OF, SLOTS, SLOT_NAME, isGear, GEAR_FX, BAG_MAX } from './data.js?v=15';
-import { dress, dressView, dressPortrait, sheetCanvas, portraitCanvas, paint } from './doll.js?v=15';
-import { NES } from './tiles.js?v=15';
-import { registerSheet } from './view.js?v=15';
-import { dieCut } from './paper.js?v=15';
-import { PEOPLE, CAST } from './people_art.js?v=15';
-import { ENEMY_ART, ENEMY_INFO } from './enemy_art.js?v=15';
-import * as R from './rules.js?v=15';
-import { battle } from './battle.js?v=15';
-import { t, STR, getLang, setLang, nameOf } from './ui.js?v=15';
+import { MAPS, PLACES, TILES, L } from './maps.js?v=16';
+import { WORLD, WORLD_W, WORLD_H, PLACE_AT } from './world_map.js?v=16';
+import { ITEMS, SKILLS, SHOPS, ENEMIES, ZONES, zoneAt, ENCOUNTER, RARE, RARE_CHANCE, MONEY_FOE, ART_OF, SLOTS, SLOT_NAME, isGear, GEAR_FX, BAG_MAX } from './data.js?v=16';
+import { dress, dressView, dressPortrait, sheetCanvas, portraitCanvas, paint } from './doll.js?v=16';
+import { NES } from './tiles.js?v=16';
+import { registerSheet } from './view.js?v=16';
+import { dieCut } from './paper.js?v=16';
+import { PEOPLE, CAST } from './people_art.js?v=16';
+import { ENEMY_ART, ENEMY_INFO } from './enemy_art.js?v=16';
+import * as R from './rules.js?v=16';
+import { battle } from './battle.js?v=16';
+import { t, STR, getLang, setLang, nameOf } from './ui.js?v=16';
+import { stage, objective, SIGNS, SIGN_AT } from './hints.js?v=16';
 
 const DIRS = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
 const SAVE_KEYS = ['lq_slot1', 'lq_slot2', 'lq_slot3'];
@@ -109,6 +110,7 @@ export class Game {
     const c = this.tile(x, y);
     if (this.map === 'world') {
       if (c === '~' || c === 'M' || c === 'N' || c === 'v') return false;
+      if (SIGN_AT[x + ',' + y]) return false;
       if (c === 'G') return this.has('token') || !!this.flags.fortDone;
       if (c === 'X') return this.has('rope');
       if (c === 'D') return !!this.flags.fortDone;
@@ -138,7 +140,7 @@ export class Game {
   }
   async enterWorld(x, y) {
     this.map = 'world'; this.x = x; this.y = y; this.dir = 'down'; this.moving = null; this.npcs = [];
-    if (this.view) { const pl = {}; for (const [k, [px, py]] of Object.entries(PLACE_AT)) pl[k] = [px, py, PLACES[k].look]; this.view.buildWorld(WORLD, pl, this.worldOpen()); this.setupActors(); }
+    if (this.view) { const pl = {}; for (const [k, [px, py]] of Object.entries(PLACE_AT)) pl[k] = [px, py, PLACES[k].look]; this.view.buildWorld(WORLD, pl, this.worldOpen(), SIGNS); this.setupActors(); }
     this.audio.play('field');
     this.autosave();
   }
@@ -205,9 +207,10 @@ export class Game {
     if (this.map !== 'world' || this.busy) return; const c = this.tile(nx, ny);
     const msg = c === 'G' ? L('木柵擋住了山口。上面寫著：「黑風寨，無令牌者回頭。」', 'A palisade blocks the pass: "Black Wind Fort. No token, turn back."')
       : c === 'X' ? L('吊橋斷了，深谷下雲霧翻騰。要是有繩索就好了。', 'The rope bridge is broken; mist churns in the gorge below. If only you had a rope.')
-      : c === 'D' ? L('渡口空無一船。', 'No boat waits at the pier.') : null;
+      : c === 'D' ? L('渡口空無一船。', 'No boat waits at the pier.') : SIGN_AT[nx + ',' + ny] ? this.signText(SIGN_AT[nx + ',' + ny]) : null;
     if (msg && this.hintAt !== nx + ',' + ny) { this.hintAt = nx + ',' + ny; this.run(async () => { await this.ui.say(null, msg); }); }
   }
+  signText(l) { return L('路牌上寫著：' + l.zh, 'The signpost reads: ' + l.en); }
   // run an async scene with walking paused
   async run(fn) { this.busy++; try { return await fn(); } finally { this.busy--; } }
 
@@ -288,7 +291,7 @@ export class Game {
       let n = this.npcAt(x, y);
       if (!n && this.map !== 'world' && this.tile(x, y) === '=') { x += dx; y += dy; n = this.npcAt(x, y); }
       if (n) { n.dir = { up: 'down', down: 'up', left: 'right', right: 'left' }[this.dir]; return this.talk(n); }
-      if (this.map === 'world') return this.ui.say(null, L('四下無人。', 'There is no one here.'));
+      if (this.map === 'world') return this.ui.say(null, SIGN_AT[x + ',' + y] ? this.signText(SIGN_AT[x + ',' + y]) : L('四下無人。', 'There is no one here.'));
       const c = this.tile(x, y), k = x + ',' + y;
       if (c === 'c') return this.openChest(x, y);
       if (c === 'd' && !this.isOpen(k)) {
@@ -300,6 +303,7 @@ export class Game {
         if (this.has('cellkey')) { this.setOpenKey(k); this.audio.sfx('door'); this.refreshView(); return this.ui.say(null, L('用牢房鑰匙打開了牢門。', 'The cell key opens the cell door.')); }
         return this.ui.say(null, L('牢門上了鎖。', 'The cell door is locked.'));
       }
+      if (c === 'y') { const n = (this.M.notes || {})[k]; const ls = !n ? [L('字跡模糊，看不清楚。', 'The words have worn away.')] : Array.isArray(n) ? n : [n]; for (const l of ls) await this.ui.say(null, typeof l === 'function' ? l(this) : l); return; }
       if (c === 'u' && this.M.tablet) return this.ui.say(null, this.M.tablet);
       if (c === 'u') return this.ui.say(null, L('一尊莊嚴的佛像。', 'A solemn statue.'));
       if (c === 'k') return this.ui.say(null, L('架上擺滿了舊書和罈罈罐罐。', 'The shelf is full of old books and jars.'));
@@ -336,6 +340,7 @@ export class Game {
       teach: async (k) => { if (!G.hero.learned.includes(k)) G.hero.learned.push(k); await G.audio.jingle('j_item'); await ui.say(null, L('奕叡學會了「' + SKILLS[k].zh + '」！', 'Yi Rui learned ' + SKILLS[k].en + '!')); },
       follow: (s) => { G.follow = s; if (G.view) { G.followA = G.view.actor('follow', lookOf(s)); G.fx = G.x; G.fy = G.y; } },
       battle: (id) => G.fight(id, {}),
+      stage: () => stage(G), stageIn: (...ks) => ks.includes(stage(G)),
     };
   }
   async talk(n) {
@@ -383,22 +388,19 @@ export class Game {
   }
   async storyteller() {
     const F = this.flags, has = (k) => this.has(k), ui = this.ui, B = 'baixian';
-    if (!F.shuoHome) {
-      if (!has('token') && !F.fortDone) await ui.say(B, L('令牌在瘦猴身上，瘦猴在黑風林裡。去吧。', 'The token is on Skinny Monkey, and he is in the Black Wind Woods. Go.'));
-      else if (!F.fortDone) await ui.say(B, L('有了令牌，就去黑風林東北的山口。寨中有個刀疤，刀快，心更狠。', 'With the token, go to the pass north-east of the woods. In the fort is Scar: quick blade, harder heart.'));
-      else await ui.say(B, L('人救出來了？好，好。先帶孩子回家。', 'You freed him? Good, good. Take the boy home first.'));
-    } else if (!F.quest3) {
+    if (F.shuoHome && !F.quest3) {
       F.quest3 = 1;
       await ui.say(B, L('鬼面人……幽冥教。三十年前被正派聯手剿滅，如今竟又死灰復燃。', 'A ghost mask... the Netherworld Sect. Thirty years ago the righteous sects destroyed it. Now its embers glow again.'));
       await ui.say(B, L('傳說教主屠千秋藏身東海的幽冥島，島外終年濃霧。唯有天、地、人三符合一，霧散潮退，方見通路。', 'They say its master, Tu Qianqiu, hides on the Netherworld Isle in the eastern sea, wrapped in endless fog. Only the Heaven, Earth and Mortal seals made one can part the fog and turn the tide.'));
       await ui.say(B, L('黑熊撤了渡口，你可以過河往東了。先去寒江閣，柳閣主正需要幫手。', 'Black Bear has opened the ferry; you can cross the river east. Go first to the Cold River Pavilion: Mistress Liu needs a hand.'));
     } else {
-      const hint = !has('rope') ? L('寒江閣在河東，過了渡口一路往東。柳閣主的事辦好了，她自然會幫你。', 'The Cold River Pavilion lies east across the river. Help Mistress Liu and she will help you.')
-        : !has('tian') ? L('有了飛索就能過北邊斷崖。天符在千佛塔頂。', 'With the rope you can cross the northern chasm. The Heaven Seal is atop the Thousand Buddha Tower.')
-          : !has('di') ? L('地符埋在南方沙海古墓。墓裡一片漆黑，門門上鎖：燈籠和鑰匙，一樣也不能少。', 'The Earth Seal lies in the Sand Sea Tomb to the south. It is pitch dark and every door is locked: bring a lantern and keys.')
-            : !has('ren') ? L('人符……最後在龍脊峰一帶出現。那裡住著一個脾氣很壞的人。', 'The Mortal Seal... was last seen near Dragonspine Peak. A man with a very bad temper lives there.')
-              : !F.tuDone ? L('三符齊了。到望海村南邊的海角去，那裡正對著幽冥島。', 'You have all three. Go to the cape south of Wanghai Village; it faces the Netherworld Isle.') : L('這段書，總算說完了。', 'This tale is finally told.');
-      await ui.say(B, hint);
+      // the storyteller tells you where the tale goes next: the same objective as the Clues window, in his words
+      const o = objective(this), s = stage(this);
+      const lead = { woods: L('下回分解：令牌在瘦猴身上，瘦猴在黑風林裡。', 'Next chapter: the token is on Skinny Monkey, and he is in the Black Wind Woods.'),
+        fort: L('寨中有個刀疤，刀快，心更狠。', 'In the fort is Scar: quick blade, harder heart.'), home: L('人救出來了？好，好。先帶孩子回家。', 'You freed him? Good, good. Take the boy home first.'),
+        ren: L('人符……龍脊峰上住著一個脾氣很壞的人。', 'The Mortal Seal... a man with a very bad temper lives on Dragonspine Peak.'), end: L('這段書，總算說完了。', 'This tale is finally told.') }[s];
+      if (lead) await ui.say(B, lead);
+      if (s !== 'end') { await ui.say(B, o.now); if (o.more[0]) await ui.say(B, o.more[0]); }
     }
     const n = R.xpToNext(this.hero);
     if (n > 0) await ui.say(B, L('依老夫看，你再得 ' + n + ' 點經驗，功力便可更上一層。', 'By my reckoning, ' + n + ' more experience and your skill will rise again.'));
@@ -480,19 +482,29 @@ export class Game {
       const ui = this.ui, h = this.hero;
       for (;;) {
         const panel = ui.panel('fieldstat', this.statusHTML(true));
-        const c = await ui.choose([STR.skill, STR.item, STR.equip, STR.status, STR.config, STR.book, STR.save, STR.close], { cls: 'fieldmenu', ctx: 'field' });
+        const c = await ui.choose([STR.skill, STR.item, STR.equip, STR.status, STR.clue, STR.book, STR.config, STR.save, STR.close], { cls: 'fieldmenu', ctx: 'field' });
         panel.remove();
-        if (c < 0 || c === 7) break;
+        if (c < 0 || c === 8) break;
         if (c === 0) { if (await this.fieldSkill()) break; }
         else if (c === 1) { if (await this.itemMenu()) break; }
         else if (c === 2) await this.equipMenu();
         else if (c === 3) { const p = ui.panel('statuswin', this.statusHTML(false)); await ui.choose([STR.close], { cls: 'tiny', ctx: 'close' }); p.remove(); }
-        else if (c === 4) await this.settings();
+        else if (c === 4) await this.clues();
         else if (c === 5) await this.bestiary();
-        else if (c === 6) await this.saveMenu();   // save right here; the Homeward return point stays at the last inn or hall
+        else if (c === 6) await this.settings();
+        else if (c === 7) await this.saveMenu();   // save right here; the Homeward return point stays at the last inn or hall
       }
     });
     if (this.mode === 'menu') this.mode = 'field';
+  }
+  // 線索: the current objective in a line or two, worked out from the flags; a second press shows more detail
+  async clues() {
+    const o = objective(this), ui = this.ui;
+    const body = (more) => `<div class="cluehead">${t(['線索', 'Clues'])}</div><div class="cluenow">${t(o.now)}</div>` + (more ? o.more.map((l) => `<div class="cluemore">・${t(l)}</div>`).join('') : `<div class="cluetip">${t(['（再按「更多提示」看詳情）', '(Press "More detail" for more)'])}</div>`);
+    const p = ui.panel('cluewin', body(false));
+    const i = await ui.choose([['更多提示', 'More detail'], STR.close], { cls: 'tiny', ctx: 'clue' });
+    if (i === 0) { p.innerHTML = body(true); await ui.choose([STR.close], { cls: 'tiny', ctx: 'clue2' }); }
+    p.remove();
   }
   // 圖鑑: every foe met so far, with its gallery picture, home and story
   async bestiary() {
