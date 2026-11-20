@@ -5,8 +5,8 @@ import { EffectComposer } from '../lib/addons/EffectComposer.js';
 import { RenderPass } from '../lib/addons/RenderPass.js';
 import { UnrealBloomPass } from '../lib/addons/UnrealBloomPass.js';
 import { ShaderPass } from '../lib/addons/ShaderPass.js';
-import { tex, spr } from './tiles.js?v=9';
-import { TILES } from './maps.js?v=9';
+import { tex, spr } from './tiles.js?v=10';
+import { TILES } from './maps.js?v=10';
 
 const TiltShift = {
   uniforms: { tDiffuse: { value: null }, res: { value: new THREE.Vector2(1, 1) }, dir: { value: new THREE.Vector2(1, 0) }, focus: { value: 0.5 }, band: { value: 0.18 }, amount: { value: 2.2 } },
@@ -101,6 +101,9 @@ export class View {
     // the canvas is shown with image-rendering: pixelated, so a lower render resolution stays crisp pixel art
     let pr = Math.min(window.devicePixelRatio || 1, this.quality === 'high' ? 1.25 : 1, this.prCap || 9);
     if (touch) pr = Math.max(1, Math.min(pr, Math.sqrt(2000000 / (w * h))));
+    // never render the 3D map taller than 720 pixels (600 on phones and tablets): on big or high-DPI screens this is the
+    // largest saving, and the pixelated upscale keeps the pixel art crisp
+    pr = Math.min(pr, (touch ? 600 : 720) / h);
     if (this.quality === 'low') pr = 1;
     this.renderer.setPixelRatio(pr); this.renderer.setSize(w, h, false);
     this.camera.aspect = w / h; this.camera.updateProjectionMatrix(); this.aspect = w / h;
@@ -406,8 +409,8 @@ export class View {
     if (this.post) { const f = 0.52; this.tsH.uniforms.focus.value = f; this.tsV.uniforms.focus.value = f; this.tsH.uniforms.band.value = this.tsV.uniforms.band.value = portrait ? 0.16 : 0.13; }
   }
   render() { if (this.composer) this.composer.render(); else this.renderer.render(this.scene, this.camera); }
-  fade(v) { if (this.composer) this.grade.uniforms.fade.value = v; this.canvas.style.opacity = this.composer ? 1 : String(1 - v); }
-  flash(v) { if (this.composer) this.grade.uniforms.flash.value = v; }
+  fade(v) { this.dirty = true; if (this.composer) this.grade.uniforms.fade.value = v; this.canvas.style.opacity = this.composer ? 1 : String(1 - v); }
+  flash(v) { this.dirty = true; if (this.composer) this.grade.uniforms.flash.value = v; }
 }
 
 const THEMES = {

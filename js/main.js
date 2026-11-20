@@ -1,12 +1,12 @@
 // Boot: build the view, the title screen, the opening, and run the fixed-timestep loop.
-import { View, pickQuality, loadImage, registerSheet } from './view.js?v=9';
-import { Input } from './input.js?v=9';
-import { UI, t, STR, getLang, setLang } from './ui.js?v=9';
-import { Audio } from './audio.js?v=9';
-import { Game, mapName } from './game.js?v=9';
-import { CAST, PEOPLE_IMAGE } from './people_art.js?v=9';
-import { preloadBattleArt } from './battle.js?v=9';
-import { PLACE_AT } from './world_map.js?v=9';
+import { View, pickQuality, loadImage, registerSheet } from './view.js?v=10';
+import { Input } from './input.js?v=10';
+import { UI, t, STR, getLang, setLang } from './ui.js?v=10';
+import { Audio } from './audio.js?v=10';
+import { Game, mapName } from './game.js?v=10';
+import { CAST, PEOPLE_IMAGE } from './people_art.js?v=10';
+import { preloadBattleArt } from './battle.js?v=10';
+import { PLACE_AT } from './world_map.js?v=10';
 
 const params = new URLSearchParams(location.search);
 const NORENDER = params.has('norender');
@@ -51,13 +51,13 @@ input.push((k) => {
 });
 
 async function loadArt() {
-  const jobs = [loadImage(PEOPLE_IMAGE).then((i) => registerSheet('npcs', i)), loadImage('assets/enemies.png?v=9').then((i) => registerSheet('enemies', i))];
+  const jobs = [loadImage(PEOPLE_IMAGE).then((i) => registerSheet('npcs', i)), loadImage('assets/enemies.png?v=10').then((i) => registerSheet('enemies', i))];
   for (const [id, c] of Object.entries(CAST)) jobs.push(loadImage(c.sheet).then((i) => registerSheet('cast_' + id, i)));
   await Promise.all(jobs); preloadBattleArt();
 }
 
 // ---------------------------------------------------------------- the loop (fixed 60 Hz logic, render once per frame)
-let acc = 0, last = performance.now(), fps = 60, slow = 0, lastMode = null, still = 0;
+let acc = 0, last = performance.now(), fps = 60, slow = 0, lastMode = null, still = 0, lastTalk = false;
 function loop(now) {
   const dt = Math.min(0.1, (now - last) / 1000); last = now; acc += dt;
   input.pollPad(dt);
@@ -67,12 +67,19 @@ function loop(now) {
   // menus are DOM windows over a still map: draw the map twice when a menu opens, then leave the GPU idle so the
   // menu itself stays snappy
   if (G.mode !== lastMode) { lastMode = G.mode; still = 0; }
-  if (view && G.mode === 'menu' && still++ >= 2) { requestAnimationFrame(loop); return; }
+  // (a fade or flash always gets drawn: view.dirty)
+  const rest = view && !view.dirty;
+  if (rest && G.mode === 'menu' && still++ >= 2) { requestAnimationFrame(loop); return; }
+  // a message box is open and nobody is walking: the map behind it is still, so draw it twice and then let the GPU rest
+  // (keeps the typing and the next key press instant)
+  const talk = ui.talking && !G.moving && view && view.settled && !G.npcs.some((q) => q.mv) && !(ui.msgBox && ui.msgBox.classList.contains('hidden'));
+  if (talk !== lastTalk) { lastTalk = talk; still = 0; }
+  if (rest && talk && G.mode === 'field' && still++ >= 2) { requestAnimationFrame(loop); return; }
   // standing still on the map: 30 frames a second is plenty for the water shimmer and wandering townsfolk
-  if (view && G.mode === 'field' && !G.moving && view.settled && (still++ & 1)) { requestAnimationFrame(loop); return; }
+  if (rest && G.mode === 'field' && !G.moving && view.settled && (still++ & 1)) { requestAnimationFrame(loop); return; }
   if (view && (G.mode === 'field' || G.mode === 'menu' || G.mode === 'title')) {
     if (G.mode === 'title') titlePan(dt);
-    view.render();
+    view.render(); view.dirty = false;
     // weak device: drop the post effects once if the frame rate stays low
     fps = fps * 0.95 + (1 / Math.max(dt, 0.001)) * 0.05;
     // slow device: step down once per ~2 s of low frame rate - first the resolution, then the post effects, then shadows
@@ -93,7 +100,7 @@ function titlePan(dt) { panT += dt; view.frame(dt, { x: 26 + Math.sin(panT * 0.0
 // ---------------------------------------------------------------- title
 async function title() {
   G.mode = 'title';
-  if (view) { const pl = {}; const { PLACES } = await import('./maps.js?v=9'); for (const [k, [x, y]] of Object.entries(PLACE_AT)) pl[k] = [x, y, PLACES[k].look]; const { WORLD } = await import('./world_map.js?v=9'); view.buildWorld(WORLD, pl, {}); view.camReady = false; }
+  if (view) { const pl = {}; const { PLACES } = await import('./maps.js?v=10'); for (const [k, [x, y]] of Object.entries(PLACE_AT)) pl[k] = [x, y, PLACES[k].look]; const { WORLD } = await import('./world_map.js?v=10'); view.buildWorld(WORLD, pl, {}); view.camReady = false; }
   const tl = document.getElementById('title'); tl.classList.remove('hidden');
   audio.play('title');
   for (;;) {

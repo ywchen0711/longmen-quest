@@ -1,6 +1,6 @@
 // 8-bit windows: black boxes with white rounded borders and the Cubic 11 pixel font. Messages type out, menus
 // move a ▶ cursor. Every prompt returns a promise. A test driver (UI.driver) may answer prompts instead of a person.
-import { CAST } from './people_art.js?v=9';
+import { CAST } from './people_art.js?v=10';
 
 export const STR = {
   attack: ['攻擊', 'Attack'], skill: ['武功', 'Arts'], item: ['道具', 'Items'], run: ['逃走', 'Run'],
@@ -29,6 +29,7 @@ export function t(x) {
 }
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const nextFrame = () => new Promise((r) => (document.hidden ? setTimeout(r, 16) : requestAnimationFrame(r)));
 const NAMES = {
   yirui: ['奕叡', 'Yi Rui'], yishuo: ['奕碩', 'Yi Shuo'], baixian: ['白先生', 'Mr Bai'], liuhanyan: ['柳寒煙', 'Liu Hanyan'], kuchan: ['苦禪', 'Kuchan'],
   xiaotian: ['冷笑天', 'Leng Xiaotian'], heixiong: ['黑熊', 'Black Bear'], daoba: ['刀疤', 'Scar'], shouhou: ['瘦猴', 'Skinny Monkey'], tuqianqiu: ['屠千秋', 'Tu Qianqiu'],
@@ -62,17 +63,26 @@ export class UI {
     const off = this.input.push((k) => { if (k === 'A' || k === 'B') { if (!done) skip = true; else close(); } });
     let close; const closed = new Promise((r) => { close = r; });
     this.msgText.textContent = '';
-    for (let i = 1; i <= s.length; i++) {
-      if (skip || this.fast) { this.msgText.textContent = s; break; }
-      this.msgText.textContent = s.slice(0, i); if (i % 2 === 0 && s[i - 1] !== ' ') this.audio.sfx('talk');
-      await sleep(lang === 'zh' ? 30 : 14);
+    // type by elapsed time on animation frames (not one timer per letter), so a busy frame never makes the text stutter:
+    // the letters due by now all appear at once
+    const cps = lang === 'zh' ? 33 : 70, t0 = performance.now(); let shown = 0;
+    this.talking = true;
+    while (shown < s.length) {
+      if (skip || this.fast) break;
+      await nextFrame();
+      const n = Math.min(s.length, Math.floor((performance.now() - t0) / 1000 * cps) + 1);
+      if (n > shown) {
+        if (Math.floor(n / 2) > Math.floor(shown / 2) && s[n - 1] !== ' ') this.audio.sfx('talk');
+        shown = n; this.msgText.textContent = s.slice(0, n);
+      }
     }
+    this.msgText.textContent = s;
     done = true; this.msgArrow.classList.remove('hidden');
     if (opts.noWait) { off(); return; }
     await closed; off(); this.audio.sfx('cursor');
-    if (!opts.keep) box.classList.add('hidden');
+    if (!opts.keep) { box.classList.add('hidden'); this.talking = false; }
   }
-  hideMsg() { this.msgBox.classList.add('hidden'); }
+  hideMsg() { this.msgBox.classList.add('hidden'); this.talking = false; }
   async banner2(text, ms = 1600) { if (this.driver) return; const b = this.banner; b.textContent = t(text); b.classList.remove('hidden'); b.classList.add('show'); clearTimeout(this.bt); this.bt = setTimeout(() => { b.classList.remove('show'); b.classList.add('hidden'); }, ms); }
 
   // ---------------------------------------------------------------- menus
