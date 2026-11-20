@@ -1,12 +1,12 @@
 // Boot: build the view, the title screen, the opening, and run the fixed-timestep loop.
-import { View, pickQuality, loadImage, registerSheet } from './view.js?v=8';
-import { Input } from './input.js?v=8';
-import { UI, t, STR, getLang, setLang } from './ui.js?v=8';
-import { Audio } from './audio.js?v=8';
-import { Game, mapName } from './game.js?v=8';
-import { CAST, PEOPLE_IMAGE } from './people_art.js?v=8';
-import { preloadBattleArt } from './battle.js?v=8';
-import { PLACE_AT } from './world_map.js?v=8';
+import { View, pickQuality, loadImage, registerSheet } from './view.js?v=9';
+import { Input } from './input.js?v=9';
+import { UI, t, STR, getLang, setLang } from './ui.js?v=9';
+import { Audio } from './audio.js?v=9';
+import { Game, mapName } from './game.js?v=9';
+import { CAST, PEOPLE_IMAGE } from './people_art.js?v=9';
+import { preloadBattleArt } from './battle.js?v=9';
+import { PLACE_AT } from './world_map.js?v=9';
 
 const params = new URLSearchParams(location.search);
 const NORENDER = params.has('norender');
@@ -51,26 +51,32 @@ input.push((k) => {
 });
 
 async function loadArt() {
-  const jobs = [loadImage(PEOPLE_IMAGE).then((i) => registerSheet('npcs', i)), loadImage('assets/enemies.png?v=8').then((i) => registerSheet('enemies', i))];
+  const jobs = [loadImage(PEOPLE_IMAGE).then((i) => registerSheet('npcs', i)), loadImage('assets/enemies.png?v=9').then((i) => registerSheet('enemies', i))];
   for (const [id, c] of Object.entries(CAST)) jobs.push(loadImage(c.sheet).then((i) => registerSheet('cast_' + id, i)));
   await Promise.all(jobs); preloadBattleArt();
 }
 
 // ---------------------------------------------------------------- the loop (fixed 60 Hz logic, render once per frame)
-let acc = 0, last = performance.now(), fps = 60, slow = 0;
+let acc = 0, last = performance.now(), fps = 60, slow = 0, lastMode = null, still = 0;
 function loop(now) {
   const dt = Math.min(0.1, (now - last) / 1000); last = now; acc += dt;
   input.pollPad(dt);
   const step = 1 / 60; let n = 0;
   while (acc >= step && n < 6) { G.update(step); acc -= step; n++; }
   if (acc > step) acc = 0;
+  // menus are DOM windows over a still map: draw the map twice when a menu opens, then leave the GPU idle so the
+  // menu itself stays snappy
+  if (G.mode !== lastMode) { lastMode = G.mode; still = 0; }
+  if (view && G.mode === 'menu' && still++ >= 2) { requestAnimationFrame(loop); return; }
+  // standing still on the map: 30 frames a second is plenty for the water shimmer and wandering townsfolk
+  if (view && G.mode === 'field' && !G.moving && view.settled && (still++ & 1)) { requestAnimationFrame(loop); return; }
   if (view && (G.mode === 'field' || G.mode === 'menu' || G.mode === 'title')) {
     if (G.mode === 'title') titlePan(dt);
     view.render();
     // weak device: drop the post effects once if the frame rate stays low
     fps = fps * 0.95 + (1 / Math.max(dt, 0.001)) * 0.05;
     // slow device: step down once per ~2 s of low frame rate - first the resolution, then the post effects, then shadows
-    if (fps < 48 && performance.now() > 6000) {
+    if (G.mode === 'field' && fps < 48 && performance.now() > 6000) {
       if (++slow > 120) {
         slow = 0; fps = 60;
         if (!view.prCap) { view.prCap = 1; view.resize(); }
@@ -87,7 +93,7 @@ function titlePan(dt) { panT += dt; view.frame(dt, { x: 26 + Math.sin(panT * 0.0
 // ---------------------------------------------------------------- title
 async function title() {
   G.mode = 'title';
-  if (view) { const pl = {}; const { PLACES } = await import('./maps.js?v=8'); for (const [k, [x, y]] of Object.entries(PLACE_AT)) pl[k] = [x, y, PLACES[k].look]; const { WORLD } = await import('./world_map.js?v=8'); view.buildWorld(WORLD, pl, {}); view.camReady = false; }
+  if (view) { const pl = {}; const { PLACES } = await import('./maps.js?v=9'); for (const [k, [x, y]] of Object.entries(PLACE_AT)) pl[k] = [x, y, PLACES[k].look]; const { WORLD } = await import('./world_map.js?v=9'); view.buildWorld(WORLD, pl, {}); view.camReady = false; }
   const tl = document.getElementById('title'); tl.classList.remove('hidden');
   audio.play('title');
   for (;;) {

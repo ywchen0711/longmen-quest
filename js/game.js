@@ -1,13 +1,13 @@
 // The game: where the hero is, walking on tile maps, people and their scripts, chests, doors, encounters, menus,
 // inns, shops, saving and the story's turning points. The view only draws what this holds.
-import { MAPS, PLACES, TILES, L } from './maps.js?v=8';
-import { WORLD, WORLD_W, WORLD_H, PLACE_AT } from './world_map.js?v=8';
-import { ITEMS, SKILLS, SHOPS, ENEMIES, ZONES, zoneAt, ENCOUNTER, RARE, RARE_CHANCE, MONEY_FOE, ART_OF } from './data.js?v=8';
-import { PEOPLE, CAST } from './people_art.js?v=8';
-import { ENEMY_ART, ENEMY_INFO } from './enemy_art.js?v=8';
-import * as R from './rules.js?v=8';
-import { battle } from './battle.js?v=8';
-import { t, STR, getLang, setLang, nameOf } from './ui.js?v=8';
+import { MAPS, PLACES, TILES, L } from './maps.js?v=9';
+import { WORLD, WORLD_W, WORLD_H, PLACE_AT } from './world_map.js?v=9';
+import { ITEMS, SKILLS, SHOPS, ENEMIES, ZONES, zoneAt, ENCOUNTER, RARE, RARE_CHANCE, MONEY_FOE, ART_OF } from './data.js?v=9';
+import { PEOPLE, CAST } from './people_art.js?v=9';
+import { ENEMY_ART, ENEMY_INFO } from './enemy_art.js?v=9';
+import * as R from './rules.js?v=9';
+import { battle } from './battle.js?v=9';
+import { t, STR, getLang, setLang, nameOf } from './ui.js?v=9';
 
 const DIRS = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
 const SAVE_KEYS = ['lq_slot1', 'lq_slot2', 'lq_slot3'];
@@ -478,8 +478,8 @@ export class Game {
   async fieldEffect(S) {
     const h = this.hero;
     if (S.kind === 'heal') { const v = R.rand(S.lo, S.hi), b = h.hp; h.hp = Math.min(R.stat(h).maxHp, h.hp + v); this.audio.sfx('heal'); await this.ui.say(null, L('體力回復了' + (h.hp - b) + '點。', 'Recovered ' + (h.hp - b) + ' HP.')); return false; }
-    if (S.kind === 'home' || S.home) { this.audio.sfx('run'); await this.fadeOut(); const ls = this.lastSave; await this.enterMap(ls.map, ls.x, ls.y, 'up'); await this.fadeIn(); return true; }
-    if (S.kind === 'escape') { const P = PLACE_AT[this.M.place]; this.audio.sfx('run'); await this.fadeOut(); await this.enterWorld(P[0], P[1]); await this.fadeIn(); return true; }
+    if (S.kind === 'home' || S.home) { this.audio.sfx('run'); await this.whiteOut(); await this.fadeOut(); const ls = this.lastSave; await this.enterMap(ls.map, ls.x, ls.y, 'up'); await this.fadeIn(); return true; }
+    if (S.kind === 'escape') { const P = PLACE_AT[this.M.place]; this.audio.sfx('run'); await this.whiteOut(); await this.fadeOut(); await this.enterWorld(P[0], P[1]); await this.fadeIn(); return true; }
     if (S.kind === 'ward' || S.ward) { this.ward = 150; this.audio.sfx('skill'); await this.ui.say(null, L('一身正氣，弱小的妖物不敢靠近了。', 'Weak creatures will keep their distance.')); return false; }
     return false;
   }
@@ -535,6 +535,8 @@ export class Game {
   }
 
   // ---------------------------------------------------------------- fades and drawing
+  // a quick white-out (light-foot arts): two hard flashes, then the screen burns white before the fade
+  async whiteOut() { if (!this.view || this.fast) return; for (const v of [1, 0, 1, 0.3, 1]) { this.view.flash(v); await sleep(45); } this.view.flash(0); }
   async fadeOut() { if (!this.view || this.fast) return; for (let i = 1; i <= 6; i++) { this.view.fade(i / 6); await sleep(30); } }
   async fadeIn() { if (!this.view || this.fast) return; for (let i = 5; i >= 0; i--) { this.view.fade(i / 6); await sleep(30); } }
   flashRed() { this.audio.sfx('poison'); const s = document.getElementById('screen'); if (s && !this.fast) { s.classList.remove('red'); void s.offsetWidth; s.classList.add('red'); } }

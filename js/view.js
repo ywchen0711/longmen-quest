@@ -4,10 +4,9 @@ import * as THREE from 'three';
 import { EffectComposer } from '../lib/addons/EffectComposer.js';
 import { RenderPass } from '../lib/addons/RenderPass.js';
 import { UnrealBloomPass } from '../lib/addons/UnrealBloomPass.js';
-import { OutputPass } from '../lib/addons/OutputPass.js';
 import { ShaderPass } from '../lib/addons/ShaderPass.js';
-import { tex, spr } from './tiles.js?v=8';
-import { TILES } from './maps.js?v=8';
+import { tex, spr } from './tiles.js?v=9';
+import { TILES } from './maps.js?v=9';
 
 const TiltShift = {
   uniforms: { tDiffuse: { value: null }, res: { value: new THREE.Vector2(1, 1) }, dir: { value: new THREE.Vector2(1, 0) }, focus: { value: 0.5 }, band: { value: 0.18 }, amount: { value: 2.2 } },
@@ -25,14 +24,25 @@ const TiltShift = {
       gl_FragColor = c;
     }`,
 };
-const Grade = {
-  uniforms: { tDiffuse: { value: null }, vig: { value: 0.5 }, fade: { value: 0 }, flash: { value: 0 }, tint: { value: new THREE.Vector3(1.03, 1.0, 0.95) } },
+// the last pass does three jobs in one: the vertical half of the tilt-shift blur, the linear -> sRGB output step and
+// the colour grade (tint, vignette, fades and flashes) - one full-screen pass instead of three
+const Final = {
+  uniforms: { tDiffuse: { value: null }, res: { value: new THREE.Vector2(1, 1) }, dir: { value: new THREE.Vector2(0, 1) }, focus: { value: 0.5 }, band: { value: 0.18 }, amount: { value: 2.2 },
+    vig: { value: 0.5 }, fade: { value: 0 }, flash: { value: 0 }, tint: { value: new THREE.Vector3(1.03, 1.0, 0.95) } },
   vertexShader: TiltShift.vertexShader,
-  fragmentShader: `uniform sampler2D tDiffuse; uniform float vig, fade, flash; uniform vec3 tint; varying vec2 vUv;
+  fragmentShader: `uniform sampler2D tDiffuse; uniform vec2 res, dir; uniform float focus, band, amount, vig, fade, flash; uniform vec3 tint; varying vec2 vUv;
+    vec3 toSRGB(vec3 c) { c = max(c, 0.0); return mix(c * 12.92, 1.055 * pow(c, vec3(1.0 / 2.4)) - 0.055, step(0.0031308, c)); }
     void main(){
-      vec4 c = texture2D(tDiffuse, vUv);
+      float d = max(0.0, abs(vUv.y - focus) - band);
+      vec2 st = dir / res * (clamp(d * 3.5, 0.0, 1.0) * amount);
+      vec4 c = texture2D(tDiffuse, vUv) * 0.2270270270;
+      c += texture2D(tDiffuse, vUv + st * 1.3846153846) * 0.3162162162;
+      c += texture2D(tDiffuse, vUv - st * 1.3846153846) * 0.3162162162;
+      c += texture2D(tDiffuse, vUv + st * 3.2307692308) * 0.0702702703;
+      c += texture2D(tDiffuse, vUv - st * 3.2307692308) * 0.0702702703;
+      c.rgb = toSRGB(c.rgb);
       c.rgb *= tint;
-      vec2 d = vUv - 0.5; c.rgb *= 1.0 - dot(d, d) * vig * 1.6;
+      vec2 q = vUv - 0.5; c.rgb *= 1.0 - dot(q, q) * vig * 1.6;
       c.rgb = mix(c.rgb, vec3(1.0), flash);
       c.rgb *= 1.0 - fade;
       gl_FragColor = vec4(clamp(c.rgb, 0.0, 1.0), 1.0);
@@ -77,11 +87,10 @@ export class View {
       const size = r.getDrawingBufferSize(new THREE.Vector2());
       this.composer = new EffectComposer(r, new THREE.WebGLRenderTarget(size.x, size.y, { type: THREE.HalfFloatType }));
       this.composer.addPass(new RenderPass(this.scene, this.camera));
-      this.bloom = new UnrealBloomPass(new THREE.Vector2(size.x / 2, size.y / 2), 0.32, 0.5, 0.82); this.composer.addPass(this.bloom);
-      this.tsH = new ShaderPass(TiltShift); this.tsV = new ShaderPass(TiltShift); this.tsV.uniforms.dir.value.set(0, 1);
-      this.composer.addPass(this.tsH); this.composer.addPass(this.tsV);
-      this.composer.addPass(new OutputPass());
-      this.grade = new ShaderPass(Grade); this.composer.addPass(this.grade);
+      // bloom is about ten extra full-screen passes for a faint glow: desktop 'high' only
+      if (quality === 'high') { this.bloom = new UnrealBloomPass(new THREE.Vector2(size.x / 2, size.y / 2), 0.32, 0.5, 0.82); this.composer.addPass(this.bloom); }
+      this.tsH = new ShaderPass(TiltShift); this.composer.addPass(this.tsH);
+      this.tsV = this.grade = new ShaderPass(Final); this.composer.addPass(this.tsV);
     }
     this.group = null; this.actors = new Map(); this.time = 0; this.cam = new THREE.Vector3(); this.camReady = false;
     this.resize(); window.addEventListener('resize', () => this.resize());
@@ -89,7 +98,8 @@ export class View {
   resize() {
     const w = this.canvas.clientWidth || 1, h = this.canvas.clientHeight || 1;
     const touch = (navigator.maxTouchPoints || 0) > 0;
-    let pr = Math.min(window.devicePixelRatio || 1, this.quality === 'high' ? 1.5 : 1.25, this.prCap || 9);
+    // the canvas is shown with image-rendering: pixelated, so a lower render resolution stays crisp pixel art
+    let pr = Math.min(window.devicePixelRatio || 1, this.quality === 'high' ? 1.25 : 1, this.prCap || 9);
     if (touch) pr = Math.max(1, Math.min(pr, Math.sqrt(2000000 / (w * h))));
     if (this.quality === 'low') pr = 1;
     this.renderer.setPixelRatio(pr); this.renderer.setSize(w, h, false);
@@ -378,12 +388,13 @@ export class View {
     const base = this.camDist || 15; const dist = portrait ? base * 1.15 : base, el = portrait ? 0.95 : 0.86;      // camera distance and elevation angle
     const want = new THREE.Vector3(focus.x, 0, focus.z);
     if (!this.camReady) { this.cam.copy(want); this.camReady = true; } else this.cam.lerp(want, Math.min(1, dt * 8));
+    this.settled = this.cam.distanceToSquared(want) < 1e-5;   // the camera has stopped gliding
     const c = this.camera; c.fov = portrait ? 38 : 30; c.updateProjectionMatrix();
     c.position.set(this.cam.x, this.cam.y + Math.sin(el) * dist, this.cam.z + Math.cos(el) * dist); c.lookAt(this.cam.x, 0.3, this.cam.z);
     this.tilt = Math.PI / 2 - el;
     // snap the shadow camera to whole shadow-map texels so shadows don't shimmer while the camera glides
-    // (whole tiles = 64 texels, so the shadow map only needs redrawing when the camera crosses into a new tile)
-    const sx0 = Math.round(this.cam.x), sz0 = Math.round(this.cam.z);
+    // (whole tiles are 64 texels, so snapping to tiles keeps texels aligned; the shadow box is 32 tiles wide, so moving it only every 4 tiles still covers the view)
+    const sx0 = Math.round(this.cam.x / 4) * 4, sz0 = Math.round(this.cam.z / 4) * 4;   // every 4 tiles: one shadow redraw per few steps, not per step
     if (sx0 !== this.sunX || sz0 !== this.sunZ) {
       this.sunX = sx0; this.sunZ = sz0;
       this.sun.position.set(sx0 - 10, 16, sz0 + 3); this.sun.target.position.set(sx0, 0, sz0); this.sun.target.updateMatrixWorld();
@@ -395,8 +406,8 @@ export class View {
     if (this.post) { const f = 0.52; this.tsH.uniforms.focus.value = f; this.tsV.uniforms.focus.value = f; this.tsH.uniforms.band.value = this.tsV.uniforms.band.value = portrait ? 0.16 : 0.13; }
   }
   render() { if (this.composer) this.composer.render(); else this.renderer.render(this.scene, this.camera); }
-  fade(v) { if (this.grade) this.grade.uniforms.fade.value = v; this.canvas.style.opacity = this.grade ? 1 : String(1 - v); }
-  flash(v) { if (this.grade) this.grade.uniforms.flash.value = v; }
+  fade(v) { if (this.composer) this.grade.uniforms.fade.value = v; this.canvas.style.opacity = this.composer ? 1 : String(1 - v); }
+  flash(v) { if (this.composer) this.grade.uniforms.flash.value = v; }
 }
 
 const THEMES = {

@@ -174,6 +174,29 @@ export const ENEMIES = {
 };
 export const ART_OF = (id) => ENEMIES[id].art || id;
 
+// ---------------------------------------------------------------- how a foe's blows look in battle (presentation only)
+// atkFx: claw | bite | ram | blunt | sting | arrow | magic | spore | slash (default: a weapon swing)
+// mc: [outer, mid, core] NES colours of the foe's magic (its arts and, for magic users, its plain attack)
+const ATK_FX_OF = {
+  claw: ['e_mountainmonkey', 'e_goldmonkey', 'e_rivercrab', 'e_ironcrab', 'e_littlejiangshi', 'e_bronzejiangshi', 'bx_tiger', 'bx_shanxiao', 'bx_ape', 'bx_crow', 'b_jiangjun'],
+  bite: ['e_cavebat', 'e_bloodbat', 'e_bambooviper', 'e_redsnake', 'e_greywolf', 'e_bloodwolf', 'e_frostwolf', 'e_centipede', 'e_goldcentipede', 'bx_toad', 'bx_jiao', 'bx_lion', 'e_stonetoad'],
+  ram: ['e_wildboar', 'e_ironboar'],
+  blunt: ['e_cudgeler', 'e_dummy', 'e_irondummy', 'e_bronzeman', 'e_vajraguardian', 'e_roguemonk', 'e_ironmonk', 'b_luohan', 'heixiong', 'e_treesprite', 'e_deadwood'],
+  sting: ['e_tigerhornet', 'e_ghosthornet', 'e_sandscorpion', 'e_inkscorpion'],
+  arrow: ['e_archer', 'e_netherarcher'],
+  magic: ['e_wisp', 'e_windsprite', 'e_papereffigy', 'e_inkspirit', 'e_thundersprite', 'e_netherflame', 'e_drowned', 'e_coldpool', 'e_daoist', 'e_blackdaoist', 'b_yaoji'],
+  spore: ['e_toadstool'],
+};
+const MAGIC_COL = {
+  e_wisp: [0x1C, 0x2C, 0x3C], e_windsprite: [0x1A, 0x2A, 0x3A], e_papereffigy: [0x06, 0x16, 0x30], e_inkspirit: [0x00, 0x10, 0x30],
+  e_thundersprite: [0x28, 0x38, 0x30], e_netherflame: [0x14, 0x24, 0x34], e_drowned: [0x12, 0x22, 0x32], e_coldpool: [0x11, 0x21, 0x31],
+  e_daoist: [0x16, 0x27, 0x38], e_blackdaoist: [0x04, 0x14, 0x24], b_yaoji: [0x15, 0x25, 0x35], bx_jiao: [0x12, 0x21, 0x31],
+  e_toadstool: [0x14, 0x24, 0x29], e_goldcentipede: [0x18, 0x28, 0x38], bx_toad: [0x14, 0x24, 0x29], b_jiangjun: [0x1A, 0x29, 0x39],
+  bx_crow: [0x16, 0x27, 0x38], xiaotian: [0x11, 0x21, 0x31], b_hufa: [0x04, 0x14, 0x24], tuqianqiu: [0x00, 0x10, 0x30],
+};
+for (const [fx, ids] of Object.entries(ATK_FX_OF)) for (const id of ids) ENEMIES[id].atkFx = fx;
+for (const [id, E] of Object.entries(ENEMIES)) { if (!E.atkFx) E.atkFx = 'slash'; E.mc = MAGIC_COL[id] || null; }
+
 // ---------------------------------------------------------------- where enemies live (by tier and habitat)
 // zones 1-2 and the woods: tier 1; the fort, zone 3 and the water cave: tier 2; zone 4, the grotto and the tower:
 // tiers 2-3; zone 5 and the tomb: tiers 3-4; zone 6 and the ice caves: tiers 4-5; the isle and the lair: tier 5.
