@@ -1,13 +1,13 @@
 // The game: where the hero is, walking on tile maps, people and their scripts, chests, doors, encounters, menus,
 // inns, shops, saving and the story's turning points. The view only draws what this holds.
-import { MAPS, PLACES, TILES, L } from './maps.js?v=12';
-import { WORLD, WORLD_W, WORLD_H, PLACE_AT } from './world_map.js?v=12';
-import { ITEMS, SKILLS, SHOPS, ENEMIES, ZONES, zoneAt, ENCOUNTER, RARE, RARE_CHANCE, MONEY_FOE, ART_OF } from './data.js?v=12';
-import { PEOPLE, CAST } from './people_art.js?v=12';
-import { ENEMY_ART, ENEMY_INFO } from './enemy_art.js?v=12';
-import * as R from './rules.js?v=12';
-import { battle } from './battle.js?v=12';
-import { t, STR, getLang, setLang, nameOf } from './ui.js?v=12';
+import { MAPS, PLACES, TILES, L } from './maps.js?v=13';
+import { WORLD, WORLD_W, WORLD_H, PLACE_AT } from './world_map.js?v=13';
+import { ITEMS, SKILLS, SHOPS, ENEMIES, ZONES, zoneAt, ENCOUNTER, RARE, RARE_CHANCE, MONEY_FOE, ART_OF } from './data.js?v=13';
+import { PEOPLE, CAST } from './people_art.js?v=13';
+import { ENEMY_ART, ENEMY_INFO } from './enemy_art.js?v=13';
+import * as R from './rules.js?v=13';
+import { battle } from './battle.js?v=13';
+import { t, STR, getLang, setLang, nameOf } from './ui.js?v=13';
 
 const DIRS = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
 const SAVE_KEYS = ['lq_slot1', 'lq_slot2', 'lq_slot3'];
@@ -419,15 +419,16 @@ export class Game {
       const ui = this.ui, h = this.hero;
       for (;;) {
         const panel = ui.panel('fieldstat', this.statusHTML(true));
-        const c = await ui.choose([STR.skill, STR.item, STR.equip, STR.status, STR.config, STR.book, STR.close], { cls: 'fieldmenu', ctx: 'field' });
+        const c = await ui.choose([STR.skill, STR.item, STR.equip, STR.status, STR.config, STR.book, STR.save, STR.close], { cls: 'fieldmenu', ctx: 'field' });
         panel.remove();
-        if (c < 0 || c === 6) break;
+        if (c < 0 || c === 7) break;
         if (c === 0) { if (await this.fieldSkill()) break; }
         else if (c === 1) { if (await this.itemMenu()) break; }
         else if (c === 2) await this.equipMenu();
         else if (c === 3) { const p = ui.panel('statuswin', this.statusHTML(false)); await ui.choose([STR.close], { cls: 'tiny', ctx: 'close' }); p.remove(); }
         else if (c === 4) await this.settings();
         else if (c === 5) await this.bestiary();
+        else if (c === 6) await this.saveMenu();   // save right here; the Homeward return point stays at the last inn or hall
       }
     });
     if (this.mode === 'menu') this.mode = 'field';
