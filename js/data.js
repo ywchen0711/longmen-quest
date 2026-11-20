@@ -129,7 +129,7 @@ export const ITEMS = {
   pd_moon: { zh: '冷月佩', en: 'Cold Moon Pendant', kind: 'pd', agi: 4, mmp: 10, crit: 0.05, price: 2500, look: { f: 'jade', a: 0x31, b: 0x21 }, dz: '冷笑天隨身的玉佩。', de: 'Leng Xiaotian\'s own pendant.' },
   pd5: { zh: '龍紋玉佩', en: 'Dragon Jade', kind: 'pd', def: 2, mmp: 15, regen: 2, crit: 0.02, price: 5000, look: { f: 'jade', a: 0x2B, b: 0x28 } },
 };
-export const BAG_MAX = 16;   // kinds of items carried (stacks of up to 9)
+export const BAG_MAX = 100;   // kinds of items carried (stacks of up to 9)
 // the places on the body, in menu order; the hero object holds the item id worn in each
 export const SLOTS = ['w', 'hd', 'a', 'ck', 'c', 'pd', 'bt'];
 export const SLOT_NAME = { w: ['兵器', 'Weapon'], hd: ['頭', 'Head'], a: ['衣甲', 'Armour'], ck: ['披風', 'Cloak'], c: ['護具', 'Bracer'], pd: ['佩飾', 'Pendant'], bt: ['靴', 'Boots'] };

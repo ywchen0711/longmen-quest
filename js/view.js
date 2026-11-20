@@ -12,9 +12,9 @@ import * as THREE from 'three';
 import { EffectComposer } from '../lib/addons/EffectComposer.js';
 import { RenderPass } from '../lib/addons/RenderPass.js';
 import { ShaderPass } from '../lib/addons/ShaderPass.js';
-import { tex, spr, FACES, SPR, POP } from './tiles.js?v=14';
-import { TILES } from './maps.js?v=14';
-import { grainCanvas, woodCanvas, edgeCanvas, dieCut } from './paper.js?v=14';
+import { tex, spr, FACES, SPR, POP } from './tiles.js?v=15';
+import { TILES } from './maps.js?v=15';
+import { grainCanvas, woodCanvas, edgeCanvas, dieCut } from './paper.js?v=15';
 
 // the one full-screen pass: a light depth-of-field blur away from the focus band (one pass, 9 taps where blurred,
 // 1 tap in focus), the linear -> sRGB step and the grade (warm tint, vignette, fades and flashes)

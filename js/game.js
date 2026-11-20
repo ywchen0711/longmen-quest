@@ -1,17 +1,17 @@
 // The game: where the hero is, walking on tile maps, people and their scripts, chests, doors, encounters, menus,
 // inns, shops, saving and the story's turning points. The view only draws what this holds.
-import { MAPS, PLACES, TILES, L } from './maps.js?v=14';
-import { WORLD, WORLD_W, WORLD_H, PLACE_AT } from './world_map.js?v=14';
-import { ITEMS, SKILLS, SHOPS, ENEMIES, ZONES, zoneAt, ENCOUNTER, RARE, RARE_CHANCE, MONEY_FOE, ART_OF, SLOTS, SLOT_NAME, isGear, GEAR_FX, BAG_MAX } from './data.js?v=14';
-import { dress, dressView, dressPortrait, sheetCanvas, portraitCanvas, paint } from './doll.js?v=14';
-import { NES } from './tiles.js?v=14';
-import { registerSheet } from './view.js?v=14';
-import { dieCut } from './paper.js?v=14';
-import { PEOPLE, CAST } from './people_art.js?v=14';
-import { ENEMY_ART, ENEMY_INFO } from './enemy_art.js?v=14';
-import * as R from './rules.js?v=14';
-import { battle } from './battle.js?v=14';
-import { t, STR, getLang, setLang, nameOf } from './ui.js?v=14';
+import { MAPS, PLACES, TILES, L } from './maps.js?v=15';
+import { WORLD, WORLD_W, WORLD_H, PLACE_AT } from './world_map.js?v=15';
+import { ITEMS, SKILLS, SHOPS, ENEMIES, ZONES, zoneAt, ENCOUNTER, RARE, RARE_CHANCE, MONEY_FOE, ART_OF, SLOTS, SLOT_NAME, isGear, GEAR_FX, BAG_MAX } from './data.js?v=15';
+import { dress, dressView, dressPortrait, sheetCanvas, portraitCanvas, paint } from './doll.js?v=15';
+import { NES } from './tiles.js?v=15';
+import { registerSheet } from './view.js?v=15';
+import { dieCut } from './paper.js?v=15';
+import { PEOPLE, CAST } from './people_art.js?v=15';
+import { ENEMY_ART, ENEMY_INFO } from './enemy_art.js?v=15';
+import * as R from './rules.js?v=15';
+import { battle } from './battle.js?v=15';
+import { t, STR, getLang, setLang, nameOf } from './ui.js?v=15';
 
 const DIRS = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
 const SAVE_KEYS = ['lq_slot1', 'lq_slot2', 'lq_slot3'];

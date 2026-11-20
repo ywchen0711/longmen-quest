@@ -1,13 +1,13 @@
 // Boot: build the view, the title screen, the opening, and run the fixed-timestep loop.
-import { View, pickQuality, loadImage, registerSheet } from './view.js?v=14';
-import { Input } from './input.js?v=14';
-import { UI, t, STR, getLang, setLang } from './ui.js?v=14';
-import { Audio } from './audio.js?v=14';
-import { Game, mapName } from './game.js?v=14';
-import { CAST, PEOPLE_IMAGE } from './people_art.js?v=14';
-import { preloadBattleArt } from './battle.js?v=14';
-import { PLACE_AT } from './world_map.js?v=14';
-import { paperTileURL, deckleURL, woodURL } from './paper.js?v=14';
+import { View, pickQuality, loadImage, registerSheet } from './view.js?v=15';
+import { Input } from './input.js?v=15';
+import { UI, t, STR, getLang, setLang } from './ui.js?v=15';
+import { Audio } from './audio.js?v=15';
+import { Game, mapName } from './game.js?v=15';
+import { CAST, PEOPLE_IMAGE } from './people_art.js?v=15';
+import { preloadBattleArt } from './battle.js?v=15';
+import { PLACE_AT } from './world_map.js?v=15';
+import { paperTileURL, deckleURL, woodURL } from './paper.js?v=15';
 
 const params = new URLSearchParams(location.search);
 const NORENDER = params.has('norender');
@@ -54,7 +54,7 @@ input.push((k) => {
 });
 
 async function loadArt() {
-  const jobs = [loadImage(PEOPLE_IMAGE).then((i) => registerSheet('npcs', i)), loadImage('assets/enemies.png?v=14').then((i) => registerSheet('enemies', i))];
+  const jobs = [loadImage(PEOPLE_IMAGE).then((i) => registerSheet('npcs', i)), loadImage('assets/enemies.png?v=15').then((i) => registerSheet('enemies', i))];
   for (const [id, c] of Object.entries(CAST)) jobs.push(loadImage(c.sheet).then((i) => registerSheet('cast_' + id, i)));
   await Promise.all(jobs); preloadBattleArt();
 }
