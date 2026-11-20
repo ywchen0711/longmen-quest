@@ -1,16 +1,16 @@
 // Front-view one-on-one battles in pure 8-bit style. Rounds: the hero picks a command, then hero and foe act in
 // order of agility (with a little luck). Everything the foe does goes through the same rules as the hero.
-import { ENEMIES, SKILLS, ITEMS, ART_OF } from './data.js?v=7';
-import { ENEMY_ART } from './enemy_art.js?v=7';
-import { CAST } from './people_art.js?v=7';
-import * as R from './rules.js?v=7';
-import { t, STR } from './ui.js?v=7';
-import { hex } from './tiles.js?v=7';
+import { ENEMIES, SKILLS, ITEMS, ART_OF } from './data.js?v=8';
+import { ENEMY_ART } from './enemy_art.js?v=8';
+import { CAST } from './people_art.js?v=8';
+import * as R from './rules.js?v=8';
+import { t, STR } from './ui.js?v=8';
+import { hex } from './tiles.js?v=8';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const imgs = {};
 function img(src) { if (!imgs[src]) { imgs[src] = new Image(); imgs[src].src = src; } return imgs[src]; }
-export function preloadBattleArt() { img('assets/enemies.png?v=7'); for (const c of Object.values(CAST)) img(c.portrait); }
+export function preloadBattleArt() { img('assets/enemies.png?v=8'); for (const c of Object.values(CAST)) img(c.portrait); }
 
 const SCENES = {   // backdrop strip colours (NES indexes): sky, far, near
   grass: [0x21, 0x1A, 0x0A], forest: [0x0A, 0x0B, 0x1A], hill: [0x21, 0x19, 0x09], sand: [0x31, 0x27, 0x17], swamp: [0x0C, 0x0B, 0x04],
@@ -40,9 +40,10 @@ export async function battle(G, foeId, opts = {}) {
   const scene = SCENES[opts.scene] || SCENES.grass;
   let art = null, src = null;
   if (E.por) { src = img(CAST[E.por].portrait); art = { x: 0, y: 0, w: 48, h: 56, por: 1 }; }
-  else { src = img('assets/enemies.png?v=7'); art = ENEMY_ART[ART_OF(foeId)]; }
+  else { src = img('assets/enemies.png?v=8'); art = ENEMY_ART[ART_OF(foeId)]; }
   // whole device pixels per art pixel (k/3 on the 160x120 stage); bigger pictures step down so they always fit
-  const k = art.por ? 6 : Math.max(3, Math.min(E.big ? 7 : 6, Math.floor(348 / art.h), Math.floor(468 / art.w)));
+  // a third larger than 1:1 on the 160x120 stage, so the foe fills about two thirds of the black area
+  const k = art.por ? 4 : Math.max(3, Math.min(4, Math.floor(276 / art.h), Math.floor(468 / art.w)));
   const scale = k / 3;
   const fx = { flash: 0, shake: 0, alpha: 1, dissolve: 0, parts: [], slash: 0, heal: 0 };
   let alive = true, raf = 0, last = performance.now();
@@ -56,7 +57,7 @@ export async function battle(G, foeId, opts = {}) {
     cx.fillStyle = '#000'; cx.fillRect(0, 26, 160, 2);
     if (src && src.complete && art && fx.alpha > 0) {
       const w = art.w * scale, hh = art.h * scale;
-      const ox = Math.round((80 - w / 2 + (fx.shake > 0 ? (Math.random() * 6 - 3) : 0)) * 3) / 3, oy = Math.round((118 - hh) * 3) / 3;
+      const ox = Math.round((80 - w / 2 + (fx.shake > 0 ? (Math.random() * 6 - 3) : 0)) * 3) / 3, oy = Math.round(Math.max(28, 73 - hh / 2) * 3) / 3;   // centred in the black area under the backdrop strip
       const vis = fx.flash > 0 ? (Math.floor(fx.flash * 20) % 2 === 0) : true;
       if (vis) {
         cx.save(); cx.globalAlpha = fx.alpha;

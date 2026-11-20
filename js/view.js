@@ -6,8 +6,8 @@ import { RenderPass } from '../lib/addons/RenderPass.js';
 import { UnrealBloomPass } from '../lib/addons/UnrealBloomPass.js';
 import { OutputPass } from '../lib/addons/OutputPass.js';
 import { ShaderPass } from '../lib/addons/ShaderPass.js';
-import { tex, spr } from './tiles.js?v=7';
-import { TILES } from './maps.js?v=7';
+import { tex, spr } from './tiles.js?v=8';
+import { TILES } from './maps.js?v=8';
 
 const TiltShift = {
   uniforms: { tDiffuse: { value: null }, res: { value: new THREE.Vector2(1, 1) }, dir: { value: new THREE.Vector2(1, 0) }, focus: { value: 0.5 }, band: { value: 0.18 }, amount: { value: 2.2 } },
@@ -64,7 +64,7 @@ export class View {
     const r = this.renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance' });
     canvas.addEventListener('webglcontextlost', (e) => e.preventDefault());
     r.outputColorSpace = THREE.SRGBColorSpace; r.toneMapping = THREE.NoToneMapping;
-    r.shadowMap.enabled = quality === 'high'; r.shadowMap.type = THREE.PCFSoftShadowMap;
+    r.shadowMap.enabled = quality === 'high'; r.shadowMap.type = THREE.PCFSoftShadowMap; r.shadowMap.autoUpdate = false;   // redrawn only when the sun moves or the map changes
     this.scene = new THREE.Scene(); this.scene.background = new THREE.Color(0x0d0d1a);
     this.camera = new THREE.PerspectiveCamera(30, 16 / 9, 0.5, 120);
     this.hemi = new THREE.HemisphereLight(0xfff4e0, 0x404a60, 0.95); this.scene.add(this.hemi);
@@ -89,7 +89,7 @@ export class View {
   resize() {
     const w = this.canvas.clientWidth || 1, h = this.canvas.clientHeight || 1;
     const touch = (navigator.maxTouchPoints || 0) > 0;
-    let pr = Math.min(window.devicePixelRatio || 1, this.quality === 'high' ? 2 : 1.5);
+    let pr = Math.min(window.devicePixelRatio || 1, this.quality === 'high' ? 1.5 : 1.25, this.prCap || 9);
     if (touch) pr = Math.max(1, Math.min(pr, Math.sqrt(2000000 / (w * h))));
     if (this.quality === 'low') pr = 1;
     this.renderer.setPixelRatio(pr); this.renderer.setSize(w, h, false);
@@ -258,6 +258,7 @@ export class View {
 
   // an interior map (town or dungeon)
   buildMap(M, state) {
+    this.renderer.shadowMap.needsUpdate = true; this.sunX = this.sunZ = null;
     this.clear(); this.tilt = this.pitch();
     const theme = THEMES[M.theme] || THEMES.town; const rows = M.rows, H = rows.length, W = rows[0].length; this.size = [W, H];
     const G = {}; const add = (k, v) => (G[k] || (G[k] = [])).push(v); const r = mulberry(9);
@@ -352,6 +353,7 @@ export class View {
   setPropSprite(m, sprName) { m.material.map = sx(sprName); m.material.emissiveMap = sx(sprName); m.material.needsUpdate = true; }
   // doors opened, chests looted, gates raised
   refresh(state) {
+    this.renderer.shadowMap.needsUpdate = true;
     if (!this.dyn.doorMeshes) return;
     for (const [k, m] of Object.entries(this.dyn.doorMeshes)) m.visible = !state.isOpen(k);
     for (const [k, m] of Object.entries(this.dyn.gateMeshes)) m.visible = !state.isOpen(k);
@@ -380,8 +382,13 @@ export class View {
     c.position.set(this.cam.x, this.cam.y + Math.sin(el) * dist, this.cam.z + Math.cos(el) * dist); c.lookAt(this.cam.x, 0.3, this.cam.z);
     this.tilt = Math.PI / 2 - el;
     // snap the shadow camera to whole shadow-map texels so shadows don't shimmer while the camera glides
-    const snap = 32 / 2048, sx0 = Math.round(this.cam.x / snap) * snap, sz0 = Math.round(this.cam.z / snap) * snap;
-    this.sun.position.set(sx0 - 10, 16, sz0 + 3); this.sun.target.position.set(sx0, 0, sz0);
+    // (whole tiles = 64 texels, so the shadow map only needs redrawing when the camera crosses into a new tile)
+    const sx0 = Math.round(this.cam.x), sz0 = Math.round(this.cam.z);
+    if (sx0 !== this.sunX || sz0 !== this.sunZ) {
+      this.sunX = sx0; this.sunZ = sz0;
+      this.sun.position.set(sx0 - 10, 16, sz0 + 3); this.sun.target.position.set(sx0, 0, sz0); this.sun.target.updateMatrixWorld();
+      this.renderer.shadowMap.needsUpdate = true;
+    }
     this.lantern.position.set(focus.x, 1.4, focus.z + 0.3);
     for (const a of this.actors.values()) a.face(this.tilt);
     if (this.dyn && this.dyn.fire) this.dyn.fire.material.emissiveIntensity = 0.9 + Math.sin(this.time * 14) * 0.15;
