@@ -8,18 +8,18 @@
 // exchange shows who strikes and who is struck: the attacker winds up and lunges, the blow lands on the target's card
 // (which is boxed by blinking corner marks, flashes, recoils on its hinge and sheds paper scraps), and the number
 // pops up on a tag over the card that was hit - a cream tag for the foe, a red one for the hero.
-import { ENEMIES, SKILLS, ITEMS, ART_OF } from './data.js?v=13';
-import { ENEMY_ART } from './enemy_art.js?v=13';
-import { CAST, PEOPLE, PEOPLE_IMAGE } from './people_art.js?v=13';
-import * as R from './rules.js?v=13';
-import { t, STR } from './ui.js?v=13';
-import { hex, NES } from './tiles.js?v=13';
-import { dieCut, grainCanvas } from './paper.js?v=13';
+import { ENEMIES, SKILLS, ITEMS, ART_OF } from './data.js?v=14';
+import { ENEMY_ART } from './enemy_art.js?v=14';
+import { CAST, PEOPLE, PEOPLE_IMAGE } from './people_art.js?v=14';
+import * as R from './rules.js?v=14';
+import { t, STR } from './ui.js?v=14';
+import { hex, NES } from './tiles.js?v=14';
+import { dieCut, grainCanvas } from './paper.js?v=14';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const imgs = {};
 function img(src) { if (!imgs[src]) { imgs[src] = new Image(); imgs[src].src = src; } return imgs[src]; }
-export function preloadBattleArt() { img('assets/enemies.png?v=13'); img(PEOPLE_IMAGE); for (const c of Object.values(CAST)) img(c.portrait); }
+export function preloadBattleArt() { img('assets/enemies.png?v=14'); img(PEOPLE_IMAGE); for (const c of Object.values(CAST)) img(c.portrait); }
 
 const SCENES = {   // backdrop strip colours (NES indexes): sky, far, near
   grass: [0x21, 0x1A, 0x0A], forest: [0x0A, 0x0B, 0x1A], hill: [0x21, 0x19, 0x09], sand: [0x31, 0x27, 0x17], swamp: [0x0C, 0x0B, 0x04],
@@ -131,7 +131,7 @@ export async function battle(G, foeId, opts = {}) {
   const scene = SCENES[opts.scene] || SCENES.grass;
   let art = null, src = null;
   if (E.por) { src = img(CAST[E.por].portrait); art = { x: 0, y: 0, w: 48, h: 56, por: 1 }; }
-  else { src = img('assets/enemies.png?v=13'); art = ENEMY_ART[ART_OF(foeId)]; }
+  else { src = img('assets/enemies.png?v=14'); art = ENEMY_ART[ART_OF(foeId)]; }
   // whole device pixels per art pixel (k/3 on the 160x120 stage); bigger pictures step down so they always fit
   // a third larger than 1:1 on the 160x120 stage, so the foe fills about two thirds of the black area
   const k = art.por ? 4 : Math.max(3, Math.min(4, Math.floor(276 / art.h), Math.floor(468 / art.w)));
@@ -153,13 +153,15 @@ export async function battle(G, foeId, opts = {}) {
   // ---------------------------------------------------------------- the hero's card
   // 奕叡's back-view walk frames (the field sprite he walks north with) cut out on a white border; tinted copies for
   // the hit flash (red), heals (green), the guard (gold), a knock-out (grey) and the shadow
-  const HSRC = img(PEOPLE_IMAGE), HBP = 2, HCW = 16 + HBP * 2, HCH = 24 + HBP * 2, HS = 2;   // stage pixels per art pixel
+  const HSRC = img(PEOPLE_IMAGE), DS = G.dollSheet || null, HBP = 2, HCW = 16 + HBP * 2, HCH = 24 + HBP * 2, HS = 2;   // stage pixels per art pixel
   const HOMEX = 30, HFOOT = 117, HW = HCW * HS, HH = HCH * HS, HCY = HFOOT - HH / 2 + 2, HTOP = HFOOT - HH + HBP * HS;   // the hero card's home: foot centre, centre, top of the art
   const hcards = [], htint = {}; let hTried = false;
   function makeHero() {
     hTried = true;
     try {
-      for (const f of PEOPLE.hero_back) { const a = document.createElement('canvas'); a.width = 16; a.height = 24; a.getContext('2d').drawImage(HSRC, f.x, f.y, f.w, f.h, 0, 24 - f.h, f.w, f.h); hcards.push(dieCut(a, 1, HBP, 2, '#fffaf0', '#a89a80')); }
+      // his back view as he is dressed (the paper doll's sheet, row 3), or his plain back-view sprite
+      const frames = DS ? [{ x: 0, y: 48, w: 16, h: 24 }, { x: 16, y: 48, w: 16, h: 24 }] : PEOPLE.hero_back;
+      for (const f of frames) { const a = document.createElement('canvas'); a.width = 16; a.height = 24; a.getContext('2d').drawImage(DS || HSRC, f.x, f.y, f.w, f.h, 0, 24 - f.h, f.w, f.h); hcards.push(dieCut(a, 1, HBP, 2, '#fffaf0', '#a89a80')); }
       const mk = (f) => { const c = document.createElement('canvas'); c.width = HCW; c.height = HCH; const g = c.getContext('2d'); g.drawImage(hcards[0], 0, 0); g.globalCompositeOperation = 'source-in'; g.fillStyle = f; g.fillRect(0, 0, HCW, HCH); return c; };
       htint.red = mk(COLS[0x16]); htint.white = mk('#fcfcfc'); htint.green = mk(COLS[0x2A]); htint.gold = mk(COLS[0x28]); htint.blue = mk(COLS[0x21]); htint.purple = mk(COLS[0x24]); htint.grey = mk('rgba(40,30,20,0.55)'); htint.shad = mk('rgba(30,18,6,0.42)');
     } catch (e) { hcards.length = 0; }
@@ -305,21 +307,35 @@ export async function battle(G, foeId, opts = {}) {
     }
     HP.x = HOMEX + x; HP.y = HFOOT + y; HP.sc = sc; HP.sy = sy; HP.rot = rot; HP.bl = bl; HP.ba = ba; HP.bd = bd; HP.fr = fr; HP.gh = gh;
   }
+  // the weapon in his hand, as he wears it: a dao (ring pommel), a straight sword, the long horse-cutter, a spear or
+  // staff (a shaft with a head), or a fan (ribs spread)
+  const WL = (h.w && ITEMS[h.w] && ITEMS[h.w].look) || { f: 'dao' };
+  const BL = { dao: { L: 20, w: 3 }, sword: { L: 21, w: 2 }, bigdao: { L: 25, w: 4 }, spear: { L: 30, w: 2, pole: 1 }, staff: { L: 28, w: 2, pole: 1 }, fan: { L: 9, fan: 1 } }[WL.f] || { L: 20, w: 3 };
+  const BM = WL.f === 'dao' || WL.f === 'bigdao' ? 0x10 : (WL.a ?? 0x10), BH = WL.b ?? 0x30, BC = WL.c ?? 0x27;
   let lastBa = 0;
-  function blade() {   // the ring-pommel saber in his right hand (drawn in the card's own frame, so it leans and shrinks with him)
-    const hx = -HW / 2 + (HBP + 13) * HS, hy = -HH + HBP * HS + (HBP + 12) * HS, a = HP.ba, L = 20, ca = Math.cos(a), sa = Math.sin(a);
+  function blade() {   // drawn in the card's own frame, so it leans and shrinks with him
+    const hx = -HW / 2 + (HBP + 13) * HS, hy = -HH + HBP * HS + (HBP + 12) * HS, a = HP.ba, L = BL.L, ca = Math.cos(a), sa = Math.sin(a);
     if (Math.abs(a - lastBa) > 0.02) for (let j = 4; j >= 1; j--) {   // a smear behind the tip while it sweeps
       const b = a - HP.bd * j * 0.17; fill(BLADE_TRAIL[j - 1]); line(hx + Math.cos(b) * (L - 7 + j), hy + Math.sin(b) * (L - 7 + j), hx + Math.cos(b) * L, hy + Math.sin(b) * L, j < 3 ? 2 : 1);
     }
     lastBa = a;
-    fill(0x0F); line(hx, hy, hx + ca * L, hy + sa * L, 3);
-    fill(0x10); line(hx + ca, hy + sa, hx + ca * (L - 1), hy + sa * (L - 1), 2);
-    fill(0x30); line(hx + ca * 3, hy + sa * 3, hx + ca * (L - 1), hy + sa * (L - 1), 1);
-    fill(0x28); px(hx + ca * 2, hy + sa * 2, 3); fill(0x27); circ(hx - ca * 3, hy - sa * 3, 1.5);
+    if (BL.fan) {   // the fan's ribs spread from his hand
+      for (let k = -3; k <= 3; k++) { const b = a + k * 0.16, cb = Math.cos(b), sb = Math.sin(b); fill(0x0F); line(hx, hy, hx + cb * (L + 1), hy + sb * (L + 1), 2); fill(k & 1 ? BH : BM); line(hx + cb * 3, hy + sb * 3, hx + cb * L, hy + sb * L, 1); }
+    } else if (BL.pole) {   // a shaft through his hand, iron-capped or with a spear head
+      fill(0x0F); line(hx - ca * 7, hy - sa * 7, hx + ca * L, hy + sa * L, 3);
+      fill(BC); line(hx - ca * 6, hy - sa * 6, hx + ca * (L - 1), hy + sa * (L - 1), 1);
+      if (WL.f === 'spear') { fill(0x0F); line(hx + ca * (L - 6), hy + sa * (L - 6), hx + ca * (L + 2), hy + sa * (L + 2), 3); fill(BM); line(hx + ca * (L - 5), hy + sa * (L - 5), hx + ca * (L + 1), hy + sa * (L + 1), 1); fill(0x16); px(hx + ca * (L - 7), hy + sa * (L - 7), 3); }
+      else { fill(BM); px(hx + ca * (L - 1), hy + sa * (L - 1), 2); px(hx - ca * 6, hy - sa * 6, 2); }
+    } else {
+      fill(0x0F); line(hx, hy, hx + ca * L, hy + sa * L, BL.w);
+      fill(BM); line(hx + ca, hy + sa, hx + ca * (L - 1), hy + sa * (L - 1), BL.w - 1);
+      fill(BH); line(hx + ca * 3, hy + sa * 3, hx + ca * (L - 1), hy + sa * (L - 1), 1);
+      fill(0x28); px(hx + ca * 2, hy + sa * 2, WL.f === 'sword' ? 4 : 3); fill(WL.f === 'sword' ? BC : (WL.c ?? 0x27)); circ(hx - ca * 3, hy - sa * 3, WL.f === 'sword' ? 1 : 1.5);
+    }
     if (hero.act === 'crit' && hero.t < 0.24 && blinkOn(T, 20)) star(hx + ca * L, hy + sa * L, 4, 0x30, 0x38);   // the blade glints before a crit
   }
   function drawHero() {
-    if (!hTried && HSRC.complete && HSRC.naturalWidth) makeHero();
+    if (!hTried && (DS || (HSRC.complete && HSRC.naturalWidth))) makeHero();
     if (!hcards.length) return;
     pose();
     if (riseT0 < 0) riseT0 = T;
@@ -599,7 +615,7 @@ export async function battle(G, foeId, opts = {}) {
   async function heroAttack() {
     const atk = R.heroAtk(h);
     mark(1, 0.9);
-    if (Math.random() < R.CRIT) {
+    if (Math.random() < R.heroCrit(h)) {
       const d = R.critDamage(atk);
       if (!fast) { heroAct('crit'); await sleep(160); au.sfx('dash'); await sleep(80); au.sfx('slash2'); arc(0, ARC_PAL.crit, 8, 0.3); arc(1, ARC_PAL.crit, 8, 0.3, 0.08); await sleep(130); }
       return hurtFoe(d, 'crit');
@@ -737,7 +753,7 @@ export async function battle(G, foeId, opts = {}) {
       }
       await foeArt(k);
       await hurtHero(v, false);
-      if (S.poison && !h.poison && h.hp > 0 && Math.random() < 0.5) { h.poison = true; poisonFx(); drawStat(); await say('奕叡中毒了！', 'Yi Rui is poisoned!'); }
+      if (S.poison && !h.poison && h.hp > 0 && Math.random() < 0.5 * (1 - R.resist(h, 'rpsn'))) { h.poison = true; poisonFx(); drawStat(); await say('奕叡中毒了！', 'Yi Rui is poisoned!'); }
       return;
     }
     if (S.kind === 'sleep') {
@@ -748,7 +764,7 @@ export async function battle(G, foeId, opts = {}) {
         au.sfx('miss'); burst(GREYS, 12, FCX, FCY, 50); return say('但是沒有效果。', 'But it has no effect.');
       }
       if (!fast) { for (let i = 0; i < 3; i++) add('pt', 0.35, { x: HOMEX - 8 + i * 8 + rnd(3), y: HCY - 6 + rnd(10) }, i * 0.07); au.sfx('point'); await sleep(260); }
-      if (Math.random() < 0.7) { me.sleep = 1; au.sfx('zz'); glow('pinfl'); if (!fast) { heroAct('hurt'); tintHero('gold', 0.3); } drawStat(); return say('奕叡被點中穴道，動彈不得！', 'Yi Rui is frozen by the strike!'); }
+      if (Math.random() < 0.7 * (1 - R.resist(h, 'rpin'))) { me.sleep = 1; au.sfx('zz'); glow('pinfl'); if (!fast) { heroAct('hurt'); tintHero('gold', 0.3); } drawStat(); return say('奕叡被點中穴道，動彈不得！', 'Yi Rui is frozen by the strike!'); }
       au.sfx('miss'); return say('奕叡運氣衝開了穴道！', 'Yi Rui forces the point open!');
     }
     if (S.kind === 'seal') {
@@ -758,7 +774,7 @@ export async function battle(G, foeId, opts = {}) {
         au.sfx('miss'); burst(GREYS, 12, FCX, FCY, 50); return say('但是沒有效果。', 'But it has no effect.');
       }
       if (!fast) { au.sfx('sealfx'); add('sealbox', 0.5, { x: HOMEX, y: HCY - 2, r: 20 }); await sleep(420); }
-      if (Math.random() < 0.6) { me.sealed = true; au.sfx('skill'); glow('pinfl'); if (!fast) tintHero('red', 0.3); drawStat(); return say('奕叡的經脈被封住了！', 'Yi Rui\'s meridians are sealed!'); }
+      if (Math.random() < 0.6 * (1 - R.resist(h, 'rseal'))) { me.sealed = true; au.sfx('skill'); glow('pinfl'); if (!fast) tintHero('red', 0.3); drawStat(); return say('奕叡的經脈被封住了！', 'Yi Rui\'s meridians are sealed!'); }
       au.sfx('miss'); return say('但是沒有效果。', 'But it has no effect.');
     }
     if (S.kind === 'guard') {
@@ -829,7 +845,7 @@ export async function battle(G, foeId, opts = {}) {
     if (crit) { if (!fast) { fx.scr = 0.06; fx.scrC = 0x30; } au.sfx('crit'); await say('致命的一擊！', 'A deadly blow!', 200); }
     const d = crit ? R.critDamage(foe.atk) : R.physDamage(foe.atk, R.heroDef(h) * me.guard);
     await hurtHero(d, crit);
-    if (E.poison && !h.poison && h.hp > 0 && Math.random() < E.poison) { h.poison = true; poisonFx(); drawStat(); await say('奕叡中毒了！', 'Yi Rui is poisoned!'); }
+    if (E.poison && !h.poison && h.hp > 0 && Math.random() < E.poison * (1 - R.resist(h, 'rpsn'))) { h.poison = true; poisonFx(); drawStat(); await say('奕叡中毒了！', 'Yi Rui is poisoned!'); }
   }
   async function heroTurn(cmd) {
     if (me.sleep) { if (Math.random() < 0.5) { me.sleep = 0; drawStat(); await say('奕叡衝開了穴道！', 'Yi Rui breaks free!'); } else return say('奕叡動彈不得……', 'Yi Rui cannot move...'); }
@@ -899,6 +915,13 @@ export async function battle(G, foeId, opts = {}) {
     await say(E.boss ? '打倒了' + fname + '！' : '打倒了' + fname + '！', 'You defeated the ' + fname + '!', 200);
     au.stop(); if (!E.boss || !opts.final) await au.jingle('j_win');
     if (E.xp || E.gold) { h.gold += E.gold; await say('獲得 ' + E.xp + ' 點經驗，' + E.gold + ' 兩銀子。', 'Gained ' + E.xp + ' XP and ' + E.gold + ' gold.'); }
+    // what it leaves behind: a paper tag pops up where it stood and the line names it
+    for (const id of R.rollDrops(E)) {
+      const it = ITEMS[id], got = (G.stats.got = G.stats.got || {}); (got[foeId] = got[foeId] || {})[id] = 1;
+      au.sfx('drop'); pop(t(it), 0x28, FCX, FCY - 8, 1);
+      if (R.canAdd(h, id)) { R.addItem(h, id); await say(fname + '掉落了' + it.zh + '！', fname + ' dropped ' + it.en + '!', 520); }
+      else { await say(fname + '掉落了' + it.zh + '，可是行囊滿了。', fname + ' dropped ' + it.en + ', but your pack is full.', 420); await G.makeRoom(id); }
+    }
     const ups = R.gainXp(h, E.xp); drawStat();
     for (const u of ups) {
       await au.jingle('j_level');

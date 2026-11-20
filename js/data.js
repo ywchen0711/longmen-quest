@@ -34,7 +34,8 @@ export const SKILLS = {
 export const LEARN_ORDER = ['heal', 'qi', 'sleep', 'home', 'escape', 'seal', 'heal2', 'ward', 'qi2'];
 
 // ---------------------------------------------------------------- items and gear
-// kind: use (consumable) | key (story item) | w (weapon) | a (armour) | c (bracer/charm)
+// kind: use (consumable) | key (story item) | mat (material, to sell) | gear: w weapon, a armour, c bracer, hd head,
+// bt boots, ck cloak, pd pendant
 export const ITEMS = {
   herb:     { zh: '金創藥', en: 'Wound Salve', kind: 'use', price: 12, heal: [25, 35], battle: true, field: true, dz: '回復約三十點體力。', de: 'Restores about 30 HP.' },
   antidote: { zh: '解毒草', en: 'Antidote Herb', kind: 'use', price: 8, cure: true, battle: true, field: true, dz: '解除中毒。', de: 'Cures poison.' },
@@ -50,43 +51,115 @@ export const ITEMS = {
   tian:     { zh: '天符', en: 'Heaven Seal', kind: 'key', dz: '三符之一，千佛寺的鎮寺之寶。', de: 'One of the three seals, kept by the Thousand Buddha Temple.' },
   di:       { zh: '地符', en: 'Earth Seal', kind: 'key', dz: '三符之一，埋在沙海古墓深處。', de: 'One of the three seals, buried deep in the Sand Sea Tomb.' },
   ren:      { zh: '人符', en: 'Mortal Seal', kind: 'key', dz: '三符之一，冷笑天贈。', de: 'One of the three seals, given by Leng Xiaotian.' },
-  // weapons (atk), armour (def), bracers/charms (def)
-  w0: { zh: '舊環首刀', en: 'Old Ring Saber', kind: 'w', atk: 4, price: 10 },
-  w1: { zh: '精鋼刀', en: 'Steel Dao', kind: 'w', atk: 10, price: 120 },
-  w2: { zh: '雁翎刀', en: 'Goose-feather Dao', kind: 'w', atk: 16, price: 450 },
-  w6: { zh: '藏鋒刀', en: 'Hidden-edge Dao', kind: 'w', atk: 21, price: 600 },
-  w3: { zh: '斬馬刀', en: 'Horse-cutter', kind: 'w', atk: 26, price: 1300 },
-  w4: { zh: '寒鐵刀', en: 'Cold Iron Dao', kind: 'w', atk: 34, price: 3200 },
-  w5: { zh: '龍吟刀', en: 'Dragon Song Dao', kind: 'w', atk: 44, price: 9000 },
+  // ---- materials: monster drops that sell for silver (half the price, like everything)
+  pelt:      { zh: '獸皮', en: 'Beast Pelt', kind: 'mat', price: 30, dz: '野獸的毛皮，可以賣給商人。', de: 'A beast\'s hide. Merchants buy it.' },
+  venom:     { zh: '毒囊', en: 'Venom Sac', kind: 'mat', price: 40, dz: '藥鋪收購的毒囊。', de: 'A venom sac; apothecaries buy them.' },
+  talisman:  { zh: '黃符紙', en: 'Talisman Paper', kind: 'mat', price: 60, dz: '畫過符的黃紙，道觀肯收。', de: 'Yellow paper with a spell on it.' },
+  ore:       { zh: '鐵礦石', en: 'Iron Ore', kind: 'mat', price: 90, dz: '沉甸甸的礦石，鐵匠會收。', de: 'Heavy ore a smith will buy.' },
+  pearl:     { zh: '明珠', en: 'Bright Pearl', kind: 'mat', price: 300, dz: '水底的明珠，值不少銀子。', de: 'A pearl from deep water, worth good silver.' },
+  tigerbone: { zh: '虎骨', en: 'Tiger Bone', kind: 'mat', price: 500, dz: '名貴的藥材。', de: 'A costly medicine.' },
+  // ---- gear. Seven places on the body (SLOTS). Stats any piece may give: atk, def, agi, mhp (max HP), mmp (max MP);
+  // effects (the same rules as anyone's): crit (+chance of a critical hit), rpsn / rpin / rseal (chance to shrug off
+  // poison, pressure points, sealing), regen (MP back per 10 steps). look: how it shows on 奕叡 (js/doll.js).
+  // weapons
+  w0: { zh: '舊環首刀', en: 'Old Ring Saber', kind: 'w', atk: 4, price: 10, look: { f: 'dao' } },
+  w1: { zh: '精鋼刀', en: 'Steel Dao', kind: 'w', atk: 10, price: 120, look: { f: 'dao', c: 0x30 } },
+  w14: { zh: '鐵棍', en: 'Iron Cudgel', kind: 'w', atk: 11, def: 1, price: 180, look: { f: 'staff', a: 0x00, c: 0x07 } },
+  w7: { zh: '白蠟槍', en: 'Waxwood Spear', kind: 'w', atk: 12, agi: 2, price: 260, look: { f: 'spear', a: 0x10, b: 0x30, c: 0x17 } },
+  w_scar: { zh: '斷魂刀', en: 'Soul-cutter', kind: 'w', atk: 14, crit: 0.03, price: 500, look: { f: 'dao', c: 0x16 }, dz: '刀疤的佩刀。', de: 'Scar\'s own blade.' },
+  w2: { zh: '雁翎刀', en: 'Goose-feather Dao', kind: 'w', atk: 16, price: 450, look: { f: 'dao', c: 0x31 } },
+  w8: { zh: '青鋼劍', en: 'Blue Steel Sword', kind: 'w', atk: 19, crit: 0.03, price: 820, look: { f: 'sword', a: 0x21, b: 0x31, c: 0x28 } },
+  w6: { zh: '藏鋒刀', en: 'Hidden-edge Dao', kind: 'w', atk: 21, price: 600, look: { f: 'dao', c: 0x00 } },
+  w9: { zh: '鐵禪杖', en: 'Iron Monk Staff', kind: 'w', atk: 22, def: 3, price: 1000, look: { f: 'staff', a: 0x28, c: 0x08 } },
+  w3: { zh: '斬馬刀', en: 'Horse-cutter', kind: 'w', atk: 26, price: 1300, look: { f: 'bigdao', b: 0x30, c: 0x16 } },
+  w4: { zh: '寒鐵刀', en: 'Cold Iron Dao', kind: 'w', atk: 34, price: 3200, look: { f: 'dao', c: 0x21 } },
+  w12: { zh: '寒江劍', en: 'Cold River Sword', kind: 'w', atk: 37, agi: 3, crit: 0.03, price: 4000, look: { f: 'sword', a: 0x31, b: 0x30, c: 0x21 }, dz: '寒潭底下撈起的劍，劍身冰冷。', de: 'A sword raised from a cold pool, icy to the touch.' },
+  w5: { zh: '龍吟刀', en: 'Dragon Song Dao', kind: 'w', atk: 44, price: 9000, look: { f: 'dao', c: 0x28 } },
+  w_fan: { zh: '千秋白骨扇', en: 'Bone Fan of Ages', kind: 'w', atk: 46, crit: 0.05, mmp: 10, price: 9999, look: { f: 'fan', a: 0x30, b: 0x36 }, dz: '屠千秋的白骨扇。', de: 'Tu Qianqiu\'s bone fan.' },
+  // armour
   a0: { zh: '粗布衣', en: 'Plain Robe', kind: 'a', def: 2, price: 10 },
-  a1: { zh: '皮甲', en: 'Leather Vest', kind: 'a', def: 5, price: 60 },
-  a2: { zh: '鎖子甲', en: 'Chain Shirt', kind: 'a', def: 10, price: 280 },
-  a3: { zh: '鐵鱗甲', en: 'Iron Scale', kind: 'a', def: 16, price: 900 },
-  a4: { zh: '玄鐵甲', en: 'Dark Iron Mail', kind: 'a', def: 24, price: 2600 },
-  a5: { zh: '天蠶衣', en: 'Heaven Silk Robe', kind: 'a', def: 30, price: 8000 },
-  c1: { zh: '木護腕', en: 'Wood Bracer', kind: 'c', def: 2, price: 20 },
-  c2: { zh: '銅護腕', en: 'Bronze Bracer', kind: 'c', def: 5, price: 140 },
-  c3: { zh: '鐵護腕', en: 'Iron Bracer', kind: 'c', def: 9, price: 650 },
-  c4: { zh: '金絲護腕', en: 'Gold-thread Bracer', kind: 'c', def: 14, price: 2000 },
-  c5: { zh: '龍鱗護心鏡', en: 'Dragon-scale Mirror', kind: 'c', def: 20, price: 7000 },
+  a1: { zh: '皮甲', en: 'Leather Vest', kind: 'a', def: 5, price: 60, look: { a: 0x17, b: 0x27, p: 'trim' } },
+  a2: { zh: '鎖子甲', en: 'Chain Shirt', kind: 'a', def: 10, price: 280, look: { a: 0x10, b: 0x00, p: 'chain' } },
+  a3: { zh: '鐵鱗甲', en: 'Iron Scale', kind: 'a', def: 16, price: 900, look: { a: 0x00, b: 0x10, p: 'scale', t: 0x0C } },
+  a_blood: { zh: '血刀戰袍', en: 'Blood Saber War Robe', kind: 'a', def: 22, atk: 2, price: 3000, look: { a: 0x06, b: 0x16, p: 'trim', t: 0x0F }, dz: '血刀門的戰袍。', de: 'A war robe of the Blood Saber Sect.' },
+  a4: { zh: '玄鐵甲', en: 'Dark Iron Mail', kind: 'a', def: 24, price: 2600, look: { a: 0x0C, b: 0x1C, p: 'scale', t: 0x0C } },
+  a5: { zh: '天蠶衣', en: 'Heaven Silk Robe', kind: 'a', def: 30, price: 8000, look: { a: 0x30, b: 0x31, p: 'trim', t: 0x30 } },
+  // 護具: bracers (and the dragon-scale chest mirror)
+  c1: { zh: '木護腕', en: 'Wood Bracer', kind: 'c', def: 2, price: 20, look: { f: 'bracer', a: 0x17 } },
+  c2: { zh: '銅護腕', en: 'Bronze Bracer', kind: 'c', def: 5, price: 140, look: { f: 'bracer', a: 0x18 } },
+  c3: { zh: '鐵護腕', en: 'Iron Bracer', kind: 'c', def: 9, price: 650, look: { f: 'bracer', a: 0x10 } },
+  c_ape: { zh: '白猿臂環', en: 'White Ape Armlet', kind: 'c', def: 8, mhp: 10, agi: 2, price: 900, look: { f: 'bracer', a: 0x30 }, dz: '白猿留下的臂環。', de: 'An armlet the White Ape left behind.' },
+  c_jiao: { zh: '蛟鱗護腕', en: 'Jiao-scale Bracer', kind: 'c', def: 12, agi: 2, price: 1500, look: { f: 'bracer', a: 0x2C }, dz: '江蛟的鱗片打成的護腕。', de: 'Bracers of River Jiao scales.' },
+  c4: { zh: '金絲護腕', en: 'Gold-thread Bracer', kind: 'c', def: 14, price: 2000, look: { f: 'bracer', a: 0x28 } },
+  c5: { zh: '龍鱗護心鏡', en: 'Dragon-scale Mirror', kind: 'c', def: 20, price: 7000, look: { f: 'mirror', a: 0x10, b: 0x31 } },
+  // 頭: head
+  hd1: { zh: '紅頭巾', en: 'Red Headband', kind: 'hd', def: 1, agi: 1, price: 25, look: { f: 'band', a: 0x16 } },
+  hd2: { zh: '竹斗笠', en: 'Bamboo Hat', kind: 'hd', def: 3, rpin: 0.2, price: 150, look: { f: 'hat', a: 0x27, b: 0x37, c: 0x17 } },
+  hd3: { zh: '鐵額護', en: 'Iron Brow Guard', kind: 'hd', def: 5, price: 500, look: { f: 'brow', a: 0x10, b: 0x30, c: 0x00 } },
+  hd_veil: { zh: '黑紗斗笠', en: 'Black-veil Hat', kind: 'hd', def: 5, agi: 4, crit: 0.02, price: 1600, look: { f: 'hat', a: 0x00, b: 0x10, c: 0x0F, veil: 1 }, dz: '刺客戴的斗笠。', de: 'An assassin\'s hat.' },
+  hd4: { zh: '鐵盔', en: 'Iron Helm', kind: 'hd', def: 7, price: 1500, look: { f: 'helm', a: 0x10, b: 0x30, c: 0x00 } },
+  hd_crow: { zh: '金烏羽冠', en: 'Golden-crow Crown', kind: 'hd', def: 7, agi: 3, mmp: 12, price: 2600, look: { f: 'crown', a: 0x16, b: 0x27, c: 0x28 }, dz: '火鴉的羽毛做的冠。', de: 'A crown of fire-crow feathers.' },
+  hd_jiang: { zh: '將軍盔', en: 'General\'s Helm', kind: 'hd', def: 8, rpsn: 0.5, price: 2000, look: { f: 'helm', a: 0x18, b: 0x28, c: 0x08 }, dz: '殭屍將軍生前的頭盔。', de: 'The Jiangshi General\'s helm from his living days.' },
+  hd5: { zh: '紫金冠', en: 'Purple-gold Crown', kind: 'hd', def: 9, mmp: 12, price: 4200, look: { f: 'crown', a: 0x28, b: 0x38, c: 0x14 } },
+  hd_lion: { zh: '獅頭盔', en: 'Lion-head Helm', kind: 'hd', def: 10, mhp: 10, price: 2400, look: { f: 'helm', a: 0x28, b: 0x38, c: 0x18 }, dz: '石獅口中銜著的頭盔。', de: 'The helm the stone lion held in its jaws.' },
+  // 靴: boots
+  bt1: { zh: '草鞋', en: 'Straw Sandals', kind: 'bt', agi: 2, price: 20, look: { f: 'boots', a: 0x27 } },
+  bt2: { zh: '布靴', en: 'Cloth Boots', kind: 'bt', def: 1, agi: 3, price: 110, look: { f: 'boots', a: 0x00 } },
+  bt_monkey: { zh: '猴兒快靴', en: 'Monkey\'s Quick Boots', kind: 'bt', def: 1, agi: 5, price: 300, look: { f: 'boots', a: 0x16 }, dz: '瘦猴逃命用的快靴。', de: 'The boots Skinny Monkey ran away in.' },
+  bt3: { zh: '鹿皮靴', en: 'Deerskin Boots', kind: 'bt', def: 2, agi: 5, price: 480, look: { f: 'boots', a: 0x17 } },
+  bt4: { zh: '鐵脛靴', en: 'Iron Greaves', kind: 'bt', def: 5, agi: 1, price: 1400, look: { f: 'greaves', a: 0x10, b: 0x30 } },
+  bt_tiger: { zh: '虎紋靴', en: 'Tiger-stripe Boots', kind: 'bt', def: 3, agi: 7, price: 1800, look: { f: 'boots', a: 0x28, b: 0x38 } },
+  bt5: { zh: '踏雲靴', en: 'Cloud-step Boots', kind: 'bt', def: 3, agi: 9, price: 3800, look: { f: 'boots', a: 0x31, b: 0x30 } },
+  // 披風: cloaks
+  ck1: { zh: '麻布披風', en: 'Hemp Cape', kind: 'ck', def: 1, mhp: 4, price: 70, look: { a: 0x27, b: 0x37 } },
+  ck_wolf: { zh: '灰狼皮披風', en: 'Wolf-pelt Cape', kind: 'ck', def: 2, mhp: 6, price: 240, look: { a: 0x00, b: 0x10 } },
+  ck2: { zh: '青布披風', en: 'Green Cloth Cape', kind: 'ck', def: 2, mhp: 8, price: 260, look: { a: 0x1B, b: 0x2B } },
+  ck3: { zh: '錦緞披風', en: 'Brocade Cape', kind: 'ck', def: 3, mhp: 14, price: 900, look: { a: 0x16, b: 0x26 } },
+  ck_bear: { zh: '黑熊皮氅', en: 'Black Bear Mantle', kind: 'ck', def: 4, mhp: 14, price: 800, look: { a: 0x07, b: 0x17 }, dz: '黑熊披的熊皮。', de: 'Black Bear\'s bearskin.' },
+  ck_tiger: { zh: '虎皮披風', en: 'Tiger-skin Cape', kind: 'ck', def: 4, mhp: 12, agi: 2, price: 1200, look: { a: 0x28, b: 0x38 } },
+  ck_fox: { zh: '九尾狐裘', en: 'Nine-tail Fox Cloak', kind: 'ck', def: 5, mhp: 18, mmp: 8, rpin: 0.3, price: 2000, look: { a: 0x30, b: 0x31 }, dz: '妖姬留下的白狐裘。', de: 'The white fox fur the Siren left behind.' },
+  ck4: { zh: '玄狐裘', en: 'Black Fox Cloak', kind: 'ck', def: 5, mhp: 22, rpsn: 0.3, price: 2800, look: { a: 0x00, b: 0x30 } },
+  ck_ghost: { zh: '鬼面披風', en: 'Ghost-mask Mantle', kind: 'ck', def: 7, mhp: 28, rpin: 0.4, price: 3500, look: { a: 0x05, b: 0x15 }, dz: '鬼面護法的血色披風。', de: 'The Ghost-mask Warden\'s blood-red mantle.' },
+  // 佩飾: pendants
+  pd1: { zh: '平安符', en: 'Safe-travel Charm', kind: 'pd', def: 1, rpsn: 0.25, price: 50, look: { f: 'charm', a: 0x16, b: 0x28 } },
+  pd2: { zh: '青玉佩', en: 'Green Jade Pendant', kind: 'pd', mmp: 8, regen: 1, price: 420, look: { f: 'jade', a: 0x2A, b: 0x1A } },
+  pd3: { zh: '避毒珠', en: 'Venom-ward Pearl', kind: 'pd', rpsn: 1, price: 1100, look: { f: 'jade', a: 0x30, b: 0x34 } },
+  pd_beads: { zh: '金剛念珠', en: 'Vajra Prayer Beads', kind: 'pd', def: 3, mmp: 10, rpin: 0.5, rseal: 0.5, price: 1500, look: { f: 'beads', a: 0x18, b: 0x28 }, dz: '金身羅漢頸上的念珠。', de: 'The Golden Arhat\'s prayer beads.' },
+  pd4: { zh: '定神香囊', en: 'Calm-mind Sachet', kind: 'pd', mmp: 6, rpin: 0.6, rseal: 0.6, price: 1600, look: { f: 'charm', a: 0x14, b: 0x24 } },
+  pd_moon: { zh: '冷月佩', en: 'Cold Moon Pendant', kind: 'pd', agi: 4, mmp: 10, crit: 0.05, price: 2500, look: { f: 'jade', a: 0x31, b: 0x21 }, dz: '冷笑天隨身的玉佩。', de: 'Leng Xiaotian\'s own pendant.' },
+  pd5: { zh: '龍紋玉佩', en: 'Dragon Jade', kind: 'pd', def: 2, mmp: 15, regen: 2, crit: 0.02, price: 5000, look: { f: 'jade', a: 0x2B, b: 0x28 } },
 };
-export const BAG_MAX = 10;   // kinds of items carried (stacks of up to 9)
+export const BAG_MAX = 16;   // kinds of items carried (stacks of up to 9)
+// the places on the body, in menu order; the hero object holds the item id worn in each
+export const SLOTS = ['w', 'hd', 'a', 'ck', 'c', 'pd', 'bt'];
+export const SLOT_NAME = { w: ['兵器', 'Weapon'], hd: ['頭', 'Head'], a: ['衣甲', 'Armour'], ck: ['披風', 'Cloak'], c: ['護具', 'Bracer'], pd: ['佩飾', 'Pendant'], bt: ['靴', 'Boots'] };
+export const isGear = (id) => !!ITEMS[id] && SLOTS.includes(ITEMS[id].kind);
+// what a piece gives, in words (shops, menus): [zh, en] fragments
+export const GEAR_STATS = [['atk', '攻', 'Atk'], ['def', '防', 'Def'], ['agi', '身法', 'Agi'], ['mhp', '體力', 'HP'], ['mmp', '內力', 'MP']];
+export const GEAR_FX = [['crit', '會心', 'Crit', 100, '%'], ['rpsn', '抗毒', 'Poison res', 100, '%'], ['rpin', '抗點穴', 'Pin res', 100, '%'], ['rseal', '抗封脈', 'Seal res', 100, '%'], ['regen', '回內力', 'MP regen', 1, '/10']];
+for (const it of Object.values(ITEMS)) {   // a description for gear without its own words
+  if (!SLOTS.includes(it.kind)) continue;
+  const z = [], e = [];
+  for (const [k, zh, en] of GEAR_STATS) if (it[k]) { z.push(zh + '+' + it[k]); e.push(en + '+' + it[k]); }
+  for (const [k, zh, en, m, u] of GEAR_FX) if (it[k]) { z.push(zh + '+' + Math.round(it[k] * m) + u); e.push(en + '+' + Math.round(it[k] * m) + u); }
+  it.dz = (it.dz ? it.dz + ' ' : '') + z.join(' '); it.de = (it.de ? it.de + ' ' : '') + e.join(' ');
+}
 
 // ---------------------------------------------------------------- shops
 export const SHOPS = {
-  longmen_w: ['w1', 'a1', 'c1'],
+  longmen_w: ['w1', 'a1', 'c1', 'hd1', 'bt1'],
   longmen_i: ['herb', 'antidote', 'wing'],
-  qingshi:   ['w1', 'a1', 'a2', 'c1', 'c2'],
+  qingshi:   ['w1', 'w7', 'a1', 'a2', 'c1', 'c2', 'hd1', 'bt1', 'ck1', 'pd1'],
   qingshi_i: ['herb', 'antidote', 'wing', 'incense'],
-  linjiang:  ['w2', 'a2', 'c2'],
+  linjiang:  ['w2', 'w7', 'a2', 'c2', 'hd2', 'bt2', 'ck1', 'ck2', 'pd1'],
   linjiang_i:['herb', 'antidote', 'wing', 'incense'],
-  nanling:   ['w2', 'w3', 'a2', 'a3', 'c2', 'c3'],
+  nanling:   ['w2', 'w8', 'w3', 'a2', 'a3', 'c2', 'c3', 'hd2', 'hd3', 'bt2', 'bt3', 'ck2', 'ck3', 'pd2'],
   nanling_i: ['herb', 'antidote', 'wing', 'incense', 'lantern', 'key'],
-  hanjiang:  ['herb', 'antidote', 'wing', 'qipill'],
-  qianfo:    ['a3', 'c3', 'herb', 'antidote', 'wing'],
-  chisha:    ['w3', 'a3', 'a4', 'c3', 'c4'],
+  hanjiang:  ['herb', 'antidote', 'wing', 'qipill', 'pd2'],
+  qianfo:    ['a3', 'c3', 'hd3', 'pd2', 'pd4', 'herb', 'antidote', 'wing'],
+  chisha:    ['w3', 'a3', 'a4', 'c3', 'c4', 'hd3', 'hd4', 'bt3', 'bt4', 'ck3', 'pd3', 'pd4'],
   chisha_i:  ['herb', 'antidote', 'wing', 'key', 'lantern', 'qipill'],
-  wanghai:   ['w4', 'a4', 'c4'],
+  wanghai:   ['w4', 'a4', 'c4', 'hd4', 'hd5', 'bt4', 'bt5', 'ck4', 'pd5'],
   wanghai_i: ['herb', 'antidote', 'wing', 'incense', 'qipill', 'key'],
 };
 
@@ -158,19 +231,21 @@ export const ENEMIES = {
   bx_crow:    E('三足火鴉', 'Fire Crow', 150, 66, 44, 52, 190, 160, { sk: [['fire2', 0.25]], skName: { fire2: ['三足金焰', 'Three-foot Blaze'] }, res: 0.5 }),
   bx_toad:    E('毒蟾', 'Venom Toad', 270, 82, 56, 12, 200, 150, { poison: 0.4, sk: [['mist', 0.35]], res: 0.6 }),
   // ---- big beasts guarding a place: optional fights the hero chooses (boss rules: no running once begun)
-  bx_ape:     E('白猿', 'White Ape', 160, 46, 30, 30, 300, 200, { boss: 1, items: 2, sk: [['guard', 0.2]], res: 0.6 }),
-  bx_jiao:    E('江蛟', 'River Jiao', 210, 54, 40, 22, 340, 260, { boss: 1, mp: 40, sk: [['qi', 0.3], ['heal', 0.2]], skName: { qi: ['翻江浪', 'Overturning Wave'] }, res: 0.5 }),
-  bx_lion:    E('鎮宅石獅', 'Stone Guardian Lion', 290, 74, 64, 10, 520, 400, { boss: 1, mp: 40, sk: [['guard', 0.3]], res: 1 }),
-  // ---- bosses: people are shown by their gallery portrait; creatures by a gallery beast or their own picture
-  shouhou:    E('瘦猴', 'Skinny Monkey', 46, 19, 11, 16, 40, 60, { boss: 1, items: 3, por: 'shouhou' }),
-  daoba:      E('刀疤', 'Scar', 90, 31, 20, 13, 110, 150, { boss: 1, mp: 15, items: 3, sk: [['sleep', 0.15]], por: 'daoba', res: 0.5 }),
-  heixiong:   E('黑熊', 'Black Bear', 132, 40, 25, 10, 220, 300, { boss: 1, mp: 24, items: 4, sk: [['guard', 0.2]], por: 'heixiong', res: 0.6 }),
-  b_yaoji:    E('水月妖姬', 'Moonwater Siren', 170, 47, 34, 24, 360, 400, { boss: 1, mp: 50, sk: [['sleep', 0.2], ['heal', 0.25], ['qi', 0.3]], res: 0.6, art: 'bx_fox' }),
-  b_luohan:   E('金身羅漢', 'Golden Arhat', 230, 60, 54, 8, 560, 500, { boss: 1, mp: 40, sk: [['guard', 0.3], ['heal2', 0.2]], res: 1, art: 'b_luohan', big: 1.5 }),
-  b_jiangjun: E('殭屍將軍', 'Jiangshi General', 250, 67, 52, 14, 800, 700, { boss: 1, mp: 50, poison: 0.35, sk: [['seal', 0.2], ['mist', 0.25]], res: 1, art: 'bx_jiangshi' }),
-  xiaotian:   E('冷笑天', 'Leng Xiaotian', 320, 85, 64, 58, 1200, 0, { boss: 1, mp: 60, items: 3, sk: [['qi2', 0.22], ['heal2', 0.2]], skName: { qi2: ['笑盡天下', 'Laugh at the World'] }, por: 'xiaotian', res: 0.8 }),
-  b_hufa:     E('鬼面護法', 'Ghost-mask Warden', 300, 98, 80, 46, 1300, 900, { boss: 1, mp: 70, items: 3, sk: [['sleep', 0.2], ['seal', 0.15], ['qi2', 0.15]], res: 0.8, por: 'guimian' }),
-  tuqianqiu:  E('屠千秋', 'Tu Qianqiu', 370, 96, 76, 62, 0, 0, { boss: 1, mp: 64, items: 4, sk: [['qi2', 0.25], ['heal2', 0.2], ['sleep', 0.12], ['seal', 0.1]], skName: { qi2: ['白骨扇・千秋寂', 'Bone Fan: Silent Ages'] }, por: 'tuqianqiu', res: 1 }),
+  bx_ape:     E('白猿', 'White Ape', 160, 50, 30, 30, 300, 200, { boss: 1, items: 2, sk: [['guard', 0.2]], res: 0.6 }),
+  bx_jiao:    E('江蛟', 'River Jiao', 210, 58, 40, 22, 340, 260, { boss: 1, mp: 40, sk: [['qi', 0.3], ['heal', 0.2]], skName: { qi: ['翻江浪', 'Overturning Wave'] }, res: 0.5 }),
+  bx_lion:    E('鎮宅石獅', 'Stone Guardian Lion', 330, 85, 64, 10, 520, 400, { boss: 1, mp: 40, sk: [['guard', 0.3]], res: 1 }),
+  // ---- bosses: people are shown by their gallery portrait; creatures by a gallery beast or their own picture.
+  // Their HP and attack were raised (and the guardians' above) when the hero got seven gear slots and boss drops,
+  // so a bot that buys the best gear still loses a fight now and then, as before. Only plain numbers changed.
+  shouhou:    E('瘦猴', 'Skinny Monkey', 46, 20, 11, 16, 40, 60, { boss: 1, items: 3, por: 'shouhou' }),
+  daoba:      E('刀疤', 'Scar', 100, 38, 20, 13, 110, 150, { boss: 1, mp: 15, items: 3, sk: [['sleep', 0.15]], por: 'daoba', res: 0.5 }),
+  heixiong:   E('黑熊', 'Black Bear', 150, 47, 25, 10, 220, 300, { boss: 1, mp: 24, items: 4, sk: [['guard', 0.2]], por: 'heixiong', res: 0.6 }),
+  b_yaoji:    E('水月妖姬', 'Moonwater Siren', 195, 55, 34, 24, 360, 400, { boss: 1, mp: 50, sk: [['sleep', 0.2], ['heal', 0.25], ['qi', 0.3]], res: 0.6, art: 'bx_fox' }),
+  b_luohan:   E('金身羅漢', 'Golden Arhat', 270, 73, 54, 8, 560, 500, { boss: 1, mp: 40, sk: [['guard', 0.3], ['heal2', 0.2]], res: 1, art: 'b_luohan', big: 1.5 }),
+  b_jiangjun: E('殭屍將軍', 'Jiangshi General', 310, 84, 52, 14, 800, 700, { boss: 1, mp: 50, poison: 0.35, sk: [['seal', 0.2], ['mist', 0.25]], res: 1, art: 'bx_jiangshi' }),
+  xiaotian:   E('冷笑天', 'Leng Xiaotian', 395, 103, 64, 58, 1200, 0, { boss: 1, mp: 60, items: 3, sk: [['qi2', 0.22], ['heal2', 0.2]], skName: { qi2: ['笑盡天下', 'Laugh at the World'] }, por: 'xiaotian', res: 0.8 }),
+  b_hufa:     E('鬼面護法', 'Ghost-mask Warden', 380, 116, 80, 46, 1300, 900, { boss: 1, mp: 70, items: 3, sk: [['sleep', 0.2], ['seal', 0.15], ['qi2', 0.15]], res: 0.8, por: 'guimian' }),
+  tuqianqiu:  E('屠千秋', 'Tu Qianqiu', 480, 116, 76, 62, 0, 0, { boss: 1, mp: 64, items: 4, sk: [['qi2', 0.25], ['heal2', 0.2], ['sleep', 0.12], ['seal', 0.1]], skName: { qi2: ['白骨扇・千秋寂', 'Bone Fan: Silent Ages'] }, por: 'tuqianqiu', res: 1 }),
 };
 export const ART_OF = (id) => ENEMIES[id].art || id;
 
@@ -196,6 +271,35 @@ const MAGIC_COL = {
 };
 for (const [fx, ids] of Object.entries(ATK_FX_OF)) for (const id of ids) ENEMIES[id].atkFx = fx;
 for (const [id, E] of Object.entries(ENEMIES)) { if (!E.atkFx) E.atkFx = 'slash'; E.mc = MAGIC_COL[id] || null; }
+
+// ---------------------------------------------------------------- what a beaten foe may drop: [item, chance] each rolled
+// on its own. Common foes: materials and supplies (8-30%), now and then a piece of gear (2-5%). Big beasts and
+// bosses always leave their signature piece.
+const DROPS = {
+  e_cavebat: [['herb', 0.1]], e_bambooviper: [['venom', 0.12]], e_greywolf: [['pelt', 0.2], ['ck_wolf', 0.03]],
+  e_lackey: [['herb', 0.15], ['bt1', 0.05]], e_rivercrab: [['ore', 0.08]], e_mountainmonkey: [['pelt', 0.15], ['hd1', 0.04]],
+  e_wildboar: [['pelt', 0.25]], e_dummy: [['ore', 0.1]], e_wisp: [['talisman', 0.1]],
+  e_cudgeler: [['herb', 0.15], ['w14', 0.05]], e_redsnake: [['venom', 0.2], ['antidote', 0.1]], e_archer: [['herb', 0.2], ['hd2', 0.04]],
+  e_tigerhornet: [['venom', 0.2]], e_centipede: [['venom', 0.2], ['antidote', 0.1]], e_toadstool: [['antidote', 0.25]],
+  e_windsprite: [['talisman', 0.12], ['bt2', 0.04]], e_littlejiangshi: [['talisman', 0.15]], e_treesprite: [['herb', 0.25], ['pd2', 0.02]],
+  e_sandscorpion: [['venom', 0.25]], e_roguemonk: [['herb', 0.2], ['w9', 0.04]], e_drowned: [['pearl', 0.05], ['qipill', 0.06]],
+  e_bloodbat: [['pelt', 0.15]], e_papereffigy: [['talisman', 0.25]], e_inkspirit: [['talisman', 0.2], ['qipill', 0.05]],
+  e_goldmonkey: [['pelt', 0.2], ['bt3', 0.03]], e_bloodwolf: [['pelt', 0.25], ['ck_wolf', 0.04]], e_skeleton: [['ore', 0.12], ['hd3', 0.03]],
+  e_ironboar: [['pelt', 0.3]], e_assassin: [['herb', 0.2], ['hd_veil', 0.03]], e_daoist: [['talisman', 0.25], ['pd1', 0.05]],
+  e_bronzeman: [['ore', 0.3], ['c3', 0.03]], e_thundersprite: [['talisman', 0.15], ['qipill', 0.06]], e_ghosthornet: [['venom', 0.3]],
+  e_netherflame: [['talisman', 0.2]], e_goldcentipede: [['venom', 0.3], ['pd3', 0.02]], e_deadwood: [['herb', 0.3], ['pd2', 0.04]],
+  e_ironcrab: [['ore', 0.3]], e_bloodthug: [['herb', 0.2], ['a_blood', 0.03]], e_ironmonk: [['qipill', 0.08], ['w9', 0.05]],
+  e_irondummy: [['ore', 0.35], ['bt4', 0.03]], e_coldpool: [['pearl', 0.08], ['w12', 0.03]], e_frostwolf: [['pelt', 0.3], ['ck4', 0.02]],
+  e_inkscorpion: [['venom', 0.3]], e_bronzejiangshi: [['ore', 0.2], ['hd4', 0.03]], e_netherarcher: [['herb', 0.2], ['qipill', 0.08]],
+  e_blackbone: [['ore', 0.2], ['ck3', 0.04]], e_vajraguardian: [['ore', 0.4], ['pd4', 0.03]], e_netherassassin: [['qipill', 0.1], ['hd_veil', 0.04]],
+  e_blackdaoist: [['talisman', 0.3], ['pd5', 0.02]], e_stonetoad: [['pearl', 0.3]],
+  bx_tiger: [['ck_tiger', 0.5], ['tigerbone', 0.6]], bx_shanxiao: [['pelt', 1], ['bt_tiger', 0.4]], bx_crow: [['hd_crow', 0.6]],
+  bx_toad: [['pd3', 0.6], ['venom', 1]], bx_ape: [['c_ape', 1]], bx_jiao: [['c_jiao', 1], ['pearl', 1]], bx_lion: [['hd_lion', 1]],
+  shouhou: [['bt_monkey', 1]], daoba: [['w_scar', 1]], heixiong: [['ck_bear', 1]], b_yaoji: [['ck_fox', 1]], b_luohan: [['pd_beads', 1]],
+  b_jiangjun: [['hd_jiang', 1]], xiaotian: [['pd_moon', 1]], b_hufa: [['ck_ghost', 1]], tuqianqiu: [['w_fan', 1]],
+};
+for (const [id, d] of Object.entries(DROPS)) ENEMIES[id].drop = d;
+for (const E of Object.values(ENEMIES)) if (!E.drop) E.drop = [];
 
 // ---------------------------------------------------------------- where enemies live (by tier and habitat)
 // zones 1-2 and the woods: tier 1; the fort, zone 3 and the water cave: tier 2; zone 4, the grotto and the tower:

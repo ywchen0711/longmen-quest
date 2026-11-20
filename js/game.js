@@ -1,13 +1,17 @@
 // The game: where the hero is, walking on tile maps, people and their scripts, chests, doors, encounters, menus,
 // inns, shops, saving and the story's turning points. The view only draws what this holds.
-import { MAPS, PLACES, TILES, L } from './maps.js?v=13';
-import { WORLD, WORLD_W, WORLD_H, PLACE_AT } from './world_map.js?v=13';
-import { ITEMS, SKILLS, SHOPS, ENEMIES, ZONES, zoneAt, ENCOUNTER, RARE, RARE_CHANCE, MONEY_FOE, ART_OF } from './data.js?v=13';
-import { PEOPLE, CAST } from './people_art.js?v=13';
-import { ENEMY_ART, ENEMY_INFO } from './enemy_art.js?v=13';
-import * as R from './rules.js?v=13';
-import { battle } from './battle.js?v=13';
-import { t, STR, getLang, setLang, nameOf } from './ui.js?v=13';
+import { MAPS, PLACES, TILES, L } from './maps.js?v=14';
+import { WORLD, WORLD_W, WORLD_H, PLACE_AT } from './world_map.js?v=14';
+import { ITEMS, SKILLS, SHOPS, ENEMIES, ZONES, zoneAt, ENCOUNTER, RARE, RARE_CHANCE, MONEY_FOE, ART_OF, SLOTS, SLOT_NAME, isGear, GEAR_FX, BAG_MAX } from './data.js?v=14';
+import { dress, dressView, dressPortrait, sheetCanvas, portraitCanvas, paint } from './doll.js?v=14';
+import { NES } from './tiles.js?v=14';
+import { registerSheet } from './view.js?v=14';
+import { dieCut } from './paper.js?v=14';
+import { PEOPLE, CAST } from './people_art.js?v=14';
+import { ENEMY_ART, ENEMY_INFO } from './enemy_art.js?v=14';
+import * as R from './rules.js?v=14';
+import { battle } from './battle.js?v=14';
+import { t, STR, getLang, setLang, nameOf } from './ui.js?v=14';
 
 const DIRS = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
 const SAVE_KEYS = ['lq_slot1', 'lq_slot2', 'lq_slot3'];
@@ -31,6 +35,17 @@ export function lookOf(s) {
   return lookOf('man');
 }
 
+// 奕叡 as the paper doll dresses him: his frames in the 'doll' sheet (walk frames x down/side/up)
+const heroLook = () => { const r = (y) => [[0, y, 16, 24, 0, 'doll'], [16, y, 16, 24, 0, 'doll']]; return { sheet: 'doll', frames: { down: r(0), side: r(24), up: r(48) } }; };
+const SAVE_V = 2;
+// old records: v1 had three gear slots; the new ones start empty, the bag is kept
+function migrate(d) {
+  const h = d.hero; for (const s of SLOTS) if (!(s in h)) h[s] = null;
+  h.bag = (h.bag || []).filter((b) => ITEMS[b.id]);
+  if (d.stats && !d.stats.got) d.stats.got = {};
+  d.v = SAVE_V; return d;
+}
+
 export class Game {
   constructor({ view, ui, input, audio }) {
     this.view = view; this.ui = ui; this.input = input; this.audio = audio;
@@ -41,10 +56,41 @@ export class Game {
   newGame() {
     this.hero = R.newHero(); this.flags = {}; this.open = {}; this.follow = null; this.ward = 0;
     this.map = 'longmen'; this.x = 4; this.y = 7; this.dir = 'down'; this.lastSave = { map: 'longmen', x: 15, y: 4 };
-    this.stats = { battles: 0, wins: 0, steps: 0, deaths: 0, time: 0 }; this.encCool = 6;
+    this.stats = { battles: 0, wins: 0, steps: 0, deaths: 0, time: 0, got: {} }; this.encCool = 6; this.dollSig = null;
   }
-  serialize() { return JSON.stringify({ v: 1, hero: this.hero, flags: this.flags, open: this.open, follow: this.follow, map: this.map, x: this.x, y: this.y, dir: this.dir, lastSave: this.lastSave, stats: this.stats, ward: this.ward, when: Date.now() }); }
-  load(json) { const d = JSON.parse(json); Object.assign(this, { hero: d.hero, flags: d.flags, open: d.open || {}, follow: d.follow, map: d.map, x: d.x, y: d.y, dir: d.dir || 'down', lastSave: d.lastSave, stats: d.stats || this.stats, ward: d.ward || 0 }); this.encCool = 4; }
+  // ---------------------------------------------------------------- the paper doll
+  looksOf(over) { const h = this.hero, L = {}; for (const s of SLOTS) { const id = over && s in over ? over[s] : h[s]; L[s] = id && ITEMS[id] && ITEMS[id].look ? ITEMS[id].look : null; } return L; }
+  // rebuild his sprites only when what he wears changed: the sheet (field + battle card) and the portrait
+  dressUp() {
+    const h = this.hero; if (!h || typeof document === 'undefined') return;
+    const sig = SLOTS.map((s) => h[s] || '').join(','); if (sig === this.dollSig) return;
+    this.dollSig = sig; this.dollImgs = null;
+    const looks = this.looksOf();
+    this.dollSheet = sheetCanvas(dress(looks), NES, this.dollSheet); registerSheet('doll', this.dollSheet);
+    try { this.ui.por.yirui = portraitCanvas(dressPortrait(looks), NES).toDataURL(); } catch (e) {}
+    if (this.heroA) this.heroA.relook(heroLook());
+  }
+  wear(id) { R.equip(this.hero, id); this.dressUp(); }
+  // die-cut pictures of the doll for the menus (front, side and back); `over` previews a piece
+  dollPics(over) {
+    if (!over && this.dollImgs) return this.dollImgs;
+    const looks = this.looksOf(over), out = {};
+    for (const v of ['down', 'side', 'up']) { const c = document.createElement('canvas'); c.width = 16; c.height = 24; paint(c.getContext('2d'), dressView(v, 0, looks), 16, 24, NES); out[v] = dieCut(c, 1, 2, 2, '#fffaf0', '#a89a80').toDataURL(); }
+    if (!over) this.dollImgs = out; return out;
+  }
+  // a dropped or found item when the pack is full: leave it, or drop something carried to make room
+  async makeRoom(id) {
+    const h = this.hero, it = ITEMS[id];
+    const tossable = h.bag.filter((b) => ITEMS[b.id].kind !== 'key');
+    const opts = [{ label: ['不要了', 'Leave it'], sub: t(it) }].concat(tossable.map((b) => ({ label: ITEMS[b.id], sub: '×' + b.n })));
+    const i = await this.ui.choose(opts, { title: L('行囊滿了：丟掉什麼？', 'Pack full: drop what?'), ctx: 'room', cls: 'shoplist' });
+    if (i <= 0) { await this.ui.say(null, L(it.zh + '只好留下了。', 'You leave the ' + it.en + ' behind.')); return false; }
+    const b = tossable[i - 1]; h.bag.splice(h.bag.indexOf(b), 1); R.addItem(h, id);
+    await this.ui.say(null, L('丟掉了' + ITEMS[b.id].zh + '，收下了' + it.zh + '。', 'You drop the ' + ITEMS[b.id].en + ' and take the ' + it.en + '.'));
+    return true;
+  }
+  serialize() { return JSON.stringify({ v: SAVE_V, hero: this.hero, flags: this.flags, open: this.open, follow: this.follow, map: this.map, x: this.x, y: this.y, dir: this.dir, lastSave: this.lastSave, stats: this.stats, ward: this.ward, when: Date.now() }); }
+  load(json) { const d = migrate(JSON.parse(json)); this.dollSig = null; Object.assign(this, { hero: d.hero, flags: d.flags, open: d.open || {}, follow: d.follow, map: d.map, x: d.x, y: d.y, dir: d.dir || 'down', lastSave: d.lastSave, stats: d.stats || this.stats, ward: d.ward || 0 }); this.encCool = 4; }
   autosave() { if (this.mode !== 'field' && this.mode !== 'menu') return; try { localStorage.setItem(AUTO, this.serialize()); } catch (e) {} }
   saveSlot(i) { try { localStorage.setItem(SAVE_KEYS[i], this.serialize()); localStorage.setItem(AUTO, this.serialize()); return true; } catch (e) { return false; } }
   static slotInfo(i) { try { const s = localStorage.getItem(i === 'auto' ? AUTO : SAVE_KEYS[i]); if (!s) return null; const d = JSON.parse(s); return { lv: d.hero.lv, map: d.map, when: d.when, raw: s }; } catch (e) { return null; } }
@@ -113,7 +159,8 @@ export class Game {
     for (const b of M.beasts || []) if (!this.flags[b.flag]) this.npcs.push({ key: 'beast_' + b.id, boss: b, beast: 1, s: b.id, x: b.x, y: b.y, hx: b.x, hy: b.y, dir: 'down', walk: false, t: 0 });
   }
   setupActors() {
-    const v = this.view; this.heroA = v.actor('hero', lookOf('yirui'));
+    const v = this.view; this.dressUp(); this.heroA = v.actor('hero', this.dollSheet ? heroLook() : lookOf('yirui'));
+    if (this.heroA.look.sheet !== 'doll' && this.dollSheet) this.heroA.relook(heroLook());
     this.followA = this.follow ? v.actor('follow', lookOf(this.follow)) : null;
     if (this.followA) { this.fx = this.x; this.fy = this.y + 1; if (!this.passable(this.fx, this.fy) && this.map !== 'world') { this.fx = this.x; this.fy = this.y; } }
     for (const n of this.npcs) n.actor = v.actor('npc' + n.key + n.x + n.y, lookOf(n.s));
@@ -172,6 +219,8 @@ export class Game {
       if (this.map !== 'world' && c === null) { const P = PLACE_AT[this.M.place]; this.audio.sfx('stairs'); await this.turnOut(); await this.enterWorld(P[0], P[1]); await this.turnIn(); return; }
       // poison and swamp
       if (this.hero.poison) { this.hero.hp = Math.max(1, this.hero.hp - 1); this.flashRed(); }
+      const rg = R.gear(this.hero, 'regen');   // a jade pendant breathes qi back as you walk
+      if (rg) { this.regenAcc = (this.regenAcc || 0) + rg; while (this.regenAcc >= 10) { this.regenAcc -= 10; this.hero.mp = Math.min(R.stat(this.hero).maxMp, this.hero.mp + 1); } }
       if (this.map === 'world' && c === 'w') { this.hero.hp = Math.max(1, this.hero.hp - 1); this.flashRed(); }
       if (this.ward > 0) { this.ward--; if (this.ward === 0) await this.ui.say(null, L('驅邪的效力消失了。', 'The ward fades.')); }
       if (this.map === 'world') {
@@ -265,15 +314,15 @@ export class Game {
     let i = 0; outer: for (let yy = 0; yy < M.h; yy++) for (let xx = 0; xx < M.w; xx++) { if (M.rows[yy][xx] === 'c') { if (xx === x && yy === y) break outer; i++; } }
     const C = M.chests[i]; this.audio.sfx('chest');
     if (C.gold) { this.setOpenKey(k); this.hero.gold += C.gold; this.refreshView(); return this.ui.say(null, L('打開寶箱，得到 ' + C.gold + ' 兩銀子！', 'You open the chest: ' + C.gold + ' gold!')); }
-    if (!R.canAdd(this.hero, C.item)) return this.ui.say(null, L('行囊滿了，拿不下' + ITEMS[C.item].zh + '。', 'Your pack is full: no room for the ' + ITEMS[C.item].en + '.'));
+    if (!R.canAdd(this.hero, C.item)) return this.ui.say(null, L('行囊滿了，拿不下' + ITEMS[C.item].zh + '。先去賣掉或丟掉一些東西吧。', 'Your pack is full: no room for the ' + ITEMS[C.item].en + '. Sell or drop something first.'));
     this.setOpenKey(k); R.addItem(this.hero, C.item); this.refreshView();
-    const it = ITEMS[C.item]; if (it.kind === 'w' || it.kind === 'a' || it.kind === 'c' || it.kind === 'key') await this.audio.jingle('j_item');
+    const it = ITEMS[C.item]; if (isGear(C.item) || it.kind === 'key') await this.audio.jingle('j_item');
     await this.ui.say(null, L('打開寶箱，得到了' + it.zh + '！', 'You open the chest: ' + it.en + '!'));
-    if (it.kind === 'w' || it.kind === 'a' || it.kind === 'c') await this.offerEquip(C.item);
+    if (isGear(C.item)) await this.offerEquip(C.item);
   }
   async offerEquip(id) {
-    const it = ITEMS[id], cur = this.hero[it.kind]; const better = !cur || (it.atk || it.def || 0) > (ITEMS[cur].atk || ITEMS[cur].def || 0);
-    if (better && await this.ui.yesno(L('要現在裝備' + it.zh + '嗎？', 'Equip the ' + it.en + ' now?'))) { R.equip(this.hero, id); this.audio.sfx('ok'); }
+    const it = ITEMS[id], cur = this.hero[it.kind]; const better = R.gearScore(id) > R.gearScore(cur);
+    if (better && await this.ui.yesno(L('要現在裝備' + it.zh + '嗎？', 'Equip the ' + it.en + ' now?'))) { this.wear(id); this.audio.sfx('ok'); }
   }
   refreshView() { if (this.view) this.view.refresh({ isOpen: (k) => this.isOpen(k) }); }
   scripts() {
@@ -304,7 +353,7 @@ export class Game {
     this.flags[B.flag] = 1; this.stats['boss_' + B.id] = { lv: this.hero.lv, t: Math.round(this.stats.time), battles: this.stats.battles, deaths: this.stats.deaths };
     if (B.final) this.audio.stop();
     for (const [who, l] of B.post) await this.ui.say(who, l);
-    if (B.give) { R.addItem(this.hero, B.give); await this.audio.jingle('j_item'); await this.ui.say(null, L('得到了' + ITEMS[B.give].zh + '！', 'Received the ' + ITEMS[B.give].en + '!')); }
+    if (B.give) { if (!R.canAdd(this.hero, B.give)) await this.makeRoom(B.give); else R.addItem(this.hero, B.give); await this.audio.jingle('j_item'); await this.ui.say(null, L('得到了' + ITEMS[B.give].zh + '！', 'Received the ' + ITEMS[B.give].en + '!')); }
     this.npcs = this.npcs.filter((x) => x !== n); if (n.actor && this.view) { this.view.drop('npc' + n.key + n.x + n.y); }
     if (B.flag === 'fortDone') await this.ui.say(null, L('牢房在大堂的西邊。', 'The cells are on the west side of the hall.'));
     if (B.final) await this.ending();
@@ -380,7 +429,7 @@ export class Game {
         for (;;) {
           const list = SHOPS[id];
           const gold = ui.panel('goldwin', `${t('gold')} ${h.gold}`);
-          const i = await ui.choose(list.map((k) => ({ label: ITEMS[k], sub: ITEMS[k].price + t('gp') })), { title: STR.buy, cls: 'shoplist', ctx: 'buy', keys: list, onMove: (j) => this.showCompare(list[j]) });
+          const i = await ui.choose(list.map((k) => ({ label: ITEMS[k], sub: ITEMS[k].price + t('gp') })), { title: STR.buy, cls: 'shoplist', ctx: 'buy', keys: list, onMove: (j) => this.showCompare(list[j], null, true) });
           gold.remove(); this.hideCompare();
           if (i < 0) break;
           const k = list[i], it = ITEMS[k];
@@ -388,9 +437,9 @@ export class Game {
           if (it.kind === 'key' && this.has(k)) { await ui.say(null, L('你已經有了。', 'You already have one.')); continue; }
           if (!R.canAdd(h, k)) { await ui.say(null, L('行囊滿了。', 'Your pack is full.')); continue; }
           h.gold -= it.price; R.addItem(h, k); this.audio.sfx('buy');
-          if (it.kind === 'w' || it.kind === 'a' || it.kind === 'c') {
+          if (isGear(k)) {
             if (await ui.yesno(L('要現在裝備嗎？', 'Equip it now?'))) {
-              const old = h[it.kind]; R.equip(h, k);
+              const old = h[it.kind]; this.wear(k);
               if (old && ITEMS[old].price && await ui.yesno(L('舊的' + ITEMS[old].zh + '，' + Math.floor(ITEMS[old].price / 2) + '兩收了吧？', 'Sell your old ' + ITEMS[old].en + ' for ' + Math.floor(ITEMS[old].price / 2) + ' gold?'))) { R.removeItem(h, old); h.gold += Math.floor(ITEMS[old].price / 2); this.audio.sfx('buy'); }
             }
           } else await ui.say(null, L('謝謝惠顧！', 'Thank you!'));
@@ -398,16 +447,28 @@ export class Game {
       } else if (mode === 1) {
         const sell = h.bag.filter((b) => ITEMS[b.id].kind !== 'key' && ITEMS[b.id].price);
         if (!sell.length) { await ui.say(null, STR.noItem); continue; }
-        const i = await ui.choose(sell.map((b) => ({ label: ITEMS[b.id], sub: Math.floor(ITEMS[b.id].price / 2) + t('gp') })), { title: STR.sell, ctx: 'sell' });
+        const gold = ui.panel('goldwin', `${t('gold')} ${h.gold}`);
+        const i = await ui.choose(sell.map((b) => ({ label: ITEMS[b.id], sub: '×' + b.n + '　' + Math.floor(ITEMS[b.id].price / 2) + t('gp') })), { title: STR.sell, ctx: 'sell', cls: 'shoplist', onMove: (j) => this.desc(ITEMS[sell[j].id]) });
+        gold.remove(); this.desc(null);
         if (i < 0) continue;
         R.removeItem(h, sell[i].id); h.gold += Math.floor(ITEMS[sell[i].id].price / 2); this.audio.sfx('buy');
       } else return ui.say(null, L('慢走！', 'Safe travels!'));
     }
   }
-  showCompare(k) {
-    this.hideCompare(); const it = ITEMS[k], h = this.hero; if (!(it.kind === 'w' || it.kind === 'a' || it.kind === 'c')) { this.cmp = this.ui.panel('cmpwin', t([it.dz || '', it.de || ''])); return; }
-    const cur = h[it.kind] ? ITEMS[h[it.kind]] : null; const v = it.atk || it.def, cv = cur ? (cur.atk || cur.def) : 0; const d = v - cv;
-    this.cmp = this.ui.panel('cmpwin', `${t(it.kind === 'w' ? STR.atk : STR.def)} ${v}<br>${t(['現在', 'Now'])}：${cur ? t(cur) : t(STR.none)} ${cv}<br><b class="${d > 0 ? 'up' : d < 0 ? 'down' : ''}">${d > 0 ? '+' + d : d}</b>`);
+  // what a piece would change, with the doll wearing it: every number that moves (+ green, - red) and its effects.
+  // id null = the slot emptied
+  showCompare(id, slot, shop) {
+    this.hideCompare(); const h = this.hero;
+    if (id && !isGear(id)) { const it = ITEMS[id]; this.cmp = this.ui.panel('cmpwin', t([it.dz || '', it.de || ''])); return; }
+    slot = slot || ITEMS[id].kind;
+    const now = R.withGear(h, slot, h[slot]), then = R.withGear(h, slot, id || null);
+    const rows = [['atk', STR.atk], ['def', STR.def], ['agi', STR.agi], ['maxHp', ['體力上限', 'Max HP']], ['maxMp', ['內力上限', 'Max MP']], ['crit', ['會心', 'Crit']]];
+    const fmt = (k, v) => (k === 'crit' ? Math.round(v * 100) + '%' : v);
+    const lines = rows.filter(([k]) => then[k] !== now[k] || k === 'atk' || k === 'def').map(([k, n]) => { const d = then[k] - now[k], ds = k === 'crit' ? Math.round(d * 100) + '%' : d; return `<div class="cmprow"><span>${t(n)}</span><span>${fmt(k, now[k])}→${fmt(k, then[k])}</span><b class="${d > 0 ? 'up' : d < 0 ? 'down' : ''}">${d > 0 ? '+' + ds : d < 0 ? ds : ''}</b></div>`; }).join('');
+    const it = id ? ITEMS[id] : null, fx = it ? GEAR_FX.filter(([k]) => it[k]).map(([k, zh, en, m, u]) => t([zh, en]) + '+' + Math.round(it[k] * m) + u).join('　') : '';
+    const pic = this.dollPics({ [slot]: id || null }).down;
+    const cur = shop && h[slot] ? `<div class="cmpnow">${t(['現在', 'Now'])}：${t(ITEMS[h[slot]])}</div>` : '';
+    this.cmp = this.ui.panel('cmpwin cmpgear', `<img class="cmpdoll" src="${pic}"><div class="cmpstats"><div class="cmpname">${it ? t(it) : t(STR.unequip)}　<span>${t(SLOT_NAME[slot])}</span></div>${lines}${fx ? `<div class="cmpfx">${fx}</div>` : ''}${cur}</div>`);
   }
   hideCompare() { if (this.cmp) { this.cmp.remove(); this.cmp = null; } }
 
@@ -446,7 +507,9 @@ export class Game {
       const pic = E.por ? `<div class="bkpic"><img src="assets/people/${E.por}_portrait.png"></div>` : (() => { const a = ENEMY_ART[ART_OF(id)]; return a ? `<div class="bkpic"><div class="bkspr" style="width:${a.w}px;height:${a.h}px;background-position:-${a.x}px -${a.y}px"></div></div>` : ''; })();
       const meta = info ? `${info.tier ? t(['第' + info.tier + '階', 'Tier ' + info.tier]) + '　' : ''}${t(info.habitat)}` : t(['首領', 'Boss']);
       const bio = info ? t(info.bio) : '';
-      card = this.ui.panel('bookwin', `${pic}<div class="bktext"><div class="bkname">${t(E)}</div><div class="bkmeta">${meta}</div><div class="bkbio">${bio}</div><div class="bkmeta">${t(['擊敗', 'Defeated'])} ${(this.stats.kills || {})[id] || 0}</div></div>`);
+      const got = (this.stats.got || {})[id] || {};
+      const drops = E.drop.length ? E.drop.map(([d]) => (got[d] ? t(ITEMS[d]) : '？？？')).join('、') : '—';
+      card = this.ui.panel('bookwin', `${pic}<div class="bktext"><div class="bkname">${t(E)}</div><div class="bkmeta">${meta}</div><div class="bkbio">${bio}</div><div class="bkmeta">${t(['擊敗', 'Defeated'])} ${(this.stats.kills || {})[id] || 0}</div><div class="bkdrop">${t(STR.drop)}：${drops}</div></div>`);
     };
     await this.ui.choose(ids.map((id) => ({ label: ENEMIES[id], sub: '' })), { title: L('圖鑑 ' + ids.length + '/' + total, 'Bestiary ' + ids.length + '/' + total), cls: 'booklist', ctx: 'book', onMove: show });
     if (card) card.remove();
@@ -454,14 +517,14 @@ export class Game {
   statusHTML(short) {
     const h = this.hero, s = R.stat(h);
     if (short) return `<div>${t(['奕叡', 'Yi Rui'])}</div><div>${t('lv')} ${h.lv}</div><div>${t('hp')} ${h.hp}/${s.maxHp}</div><div>${t('mp')} ${h.mp}/${s.maxMp}</div><div>${t('gold')} ${h.gold}</div>${h.poison ? `<div class="psn">${t(['中毒', 'Poisoned'])}</div>` : ''}`;
-    const eq = (k) => (h[k] ? t(ITEMS[h[k]]) : t(STR.none));
+    const fx = GEAR_FX.map(([k, zh, en, m, u]) => [Math.min(R.gear(h, k), u === '%' ? 1 : 99), zh, en, m, u]).filter(([v]) => v).map(([v, zh, en, m, u]) => t([zh, en]) + '+' + Math.round(v * m) + u).join('　');
     return `<div class="stname">${t(['奕叡　啟程刀客', 'Yi Rui, the Departing Blade'])}</div>
-      <div class="stgrid"><span>${t('lv')}</span><b>${h.lv}</b><span>${t('xp')}</span><b>${h.xp}</b>
+      <div class="stwrap">${this.dollHTML()}<div class="stright"><div class="stgrid"><span>${t('lv')}</span><b>${h.lv}</b><span>${t('xp')}</span><b>${h.xp}</b>
       <span>${t('hp')}</span><b>${h.hp}/${s.maxHp}</b><span>${t('mp')}</span><b>${h.mp}/${s.maxMp}</b>
       <span>${t('str')}</span><b>${s.str}</b><span>${t('agi')}</span><b>${s.agi}</b>
       <span>${t('atk')}</span><b>${R.heroAtk(h)}</b><span>${t('def')}</span><b>${R.heroDef(h)}</b>
       <span>${t('gold')}</span><b>${h.gold}</b><span>${t(['下一級', 'Next'])}</span><b>${R.xpToNext(h)}</b></div>
-      <div class="steq">${t('weapon')}：${eq('w')}<br>${t('armour')}：${eq('a')}<br>${t('charm')}：${eq('c')}</div>
+      </div>${fx ? `<div class="stfx">${fx}</div>` : ''}</div></div>
       <div class="stsk">${t('skill')}：${R.known(h).map((k) => t(SKILLS[k])).join('　') || t(STR.none)}</div>`;
   }
   async fieldSkill() {
@@ -488,12 +551,13 @@ export class Game {
   async itemMenu() {
     const h = this.hero;
     if (!h.bag.length) { await this.ui.say(null, STR.noItem); return false; }
-    const i = await this.ui.choose(h.bag.map((b) => ({ label: ITEMS[b.id], sub: ITEMS[b.id].kind === 'key' ? '' : '×' + b.n })), { title: STR.item, ctx: 'fitem', onMove: (j) => this.desc(ITEMS[h.bag[j].id]) });
+    const i = await this.ui.choose(h.bag.map((b) => ({ label: ITEMS[b.id], sub: ITEMS[b.id].kind === 'key' ? '' : '×' + b.n })), { title: t(STR.item) + ' ' + h.bag.length + '/' + BAG_MAX, ctx: 'fitem', cls: 'shoplist', onMove: (j) => this.desc(ITEMS[h.bag[j].id]) });
     this.desc(null);
     if (i < 0) return false;
     const id = h.bag[i].id, it = ITEMS[id];
-    if (it.kind === 'w' || it.kind === 'a' || it.kind === 'c') { R.equip(h, id); this.audio.sfx('ok'); await this.ui.say(null, L('裝備了' + it.zh + '。', 'Equipped the ' + it.en + '.')); return false; }
+    if (isGear(id)) { this.wear(id); this.audio.sfx('ok'); await this.ui.say(null, L('裝備了' + it.zh + '。', 'Equipped the ' + it.en + '.')); return false; }
     if (it.kind === 'key' || id === 'key') { await this.ui.say(null, [it.dz, it.de]); return false; }
+    if (it.kind === 'mat') { if (await this.ui.yesno(L('這是拿去賣錢的。要丟掉' + it.zh + '嗎？', 'This is for selling. Drop the ' + it.en + '?'))) R.removeItem(h, id); return false; }
     const what = await this.ui.choose([STR.use, STR.toss], { ctx: 'usetoss', cls: 'tiny' });
     if (what === 1) { if (await this.ui.yesno(L('丟掉' + it.zh + '嗎？', 'Drop the ' + it.en + '?'))) R.removeItem(h, id); return false; }
     if (what !== 0) return false;
@@ -504,16 +568,33 @@ export class Game {
     if (it.ward) { R.removeItem(h, id); return this.fieldEffect(it); }
     return false;
   }
+  // seven places on the body: the doll beside the list shows what he wears; picking a piece previews the change
   async equipMenu() {
-    const h = this.hero, slots = ['w', 'a', 'c'], names = [STR.weapon, STR.armour, STR.charm];
+    const h = this.hero, ui = this.ui; let at = 0;
     for (;;) {
-      const i = await this.ui.choose(slots.map((s, j) => ({ label: names[j], sub: h[s] ? ITEMS[h[s]] : STR.none })), { title: STR.equip, ctx: 'eqslot', cls: 'wide' });
+      const doll = ui.panel('eqdoll', this.dollHTML());
+      const i = await ui.choose(SLOTS.map((s) => ({ label: SLOT_NAME[s], sub: h[s] ? ITEMS[h[s]] : STR.none })), { title: STR.equip, ctx: 'eqslot', cls: 'wide eqmenu', start: at });
+      doll.remove();
       if (i < 0) return;
-      const own = h.bag.filter((b) => ITEMS[b.id].kind === slots[i]);
-      if (!own.length) { await this.ui.say(null, L('沒有可以換的。', 'Nothing to change to.')); continue; }
-      const j = await this.ui.choose(own.map((b) => ({ label: ITEMS[b.id], sub: '' + (ITEMS[b.id].atk || ITEMS[b.id].def) })), { title: names[i], ctx: 'eqpick' });
-      if (j >= 0) { R.equip(h, own[j].id); this.audio.sfx('ok'); }
+      at = i; const s = SLOTS[i];
+      const own = h.bag.filter((b) => ITEMS[b.id].kind === s);
+      const opts = own.map((b) => ({ label: ITEMS[b.id], sub: shortStats(b.id) }));
+      if (h[s]) opts.push({ label: STR.unequip, sub: '' });
+      if (!opts.length) { await ui.say(null, L('沒有可以換的。', 'Nothing to change to.')); continue; }
+      const j = await ui.choose(opts, { title: SLOT_NAME[s], ctx: 'eqpick', cls: 'eqpick', keys: own.map((b) => b.id), onMove: (k) => this.showCompare(k < own.length ? own[k].id : null, s) });
+      this.hideCompare();
+      if (j < 0) continue;
+      if (j < own.length) this.wear(own[j].id);
+      else if (!R.unequip(h, s)) { await ui.say(null, L('行囊滿了，卸不下來。', 'Your pack is full.')); continue; }
+      else this.dressUp();
+      this.audio.sfx('ok');
     }
+  }
+  // the doll card: the front view big with the side and back small, and the seven places round it
+  dollHTML() {
+    const h = this.hero, P = this.dollPics();
+    const slot = (s) => `<div class="dslot"><span>${t(SLOT_NAME[s])}</span><b>${h[s] ? t(ITEMS[h[s]]) : '—'}</b></div>`;
+    return `<div class="dollbox"><div class="dcol">${['hd', 'ck', 'a', 'c'].map(slot).join('')}</div><div class="dfig"><img class="dbig" src="${P.down}"><div class="dsmall"><img src="${P.side}"><img src="${P.up}"></div></div><div class="dcol">${['w', 'pd', 'bt'].map(slot).join('')}</div></div>`;
   }
   async settings() {
     const ui = this.ui, a = this.audio;
@@ -577,7 +658,7 @@ export class Game {
     const wait = (ms) => (this.fast ? Promise.resolve() : sleep(ms));
     let li = 0;
     for (const l of lines) {
-      if (li === 2) { box.innerHTML = ''; const row = document.createElement('div'); row.className = 'endpor'; for (const c of ['baixian', 'yirui', 'yishuo']) { const im = document.createElement('img'); im.src = CAST[c].portrait; row.appendChild(im); } box.appendChild(row); }
+      if (li === 2) { box.innerHTML = ''; const row = document.createElement('div'); row.className = 'endpor'; for (const c of ['baixian', 'yirui', 'yishuo']) { const im = document.createElement('img'); im.src = this.ui.por[c] || CAST[c].portrait; row.appendChild(im); } box.appendChild(row); }
       const p = document.createElement('p'); p.textContent = t(l); box.appendChild(p); await wait(30); p.classList.add('in'); await wait(4200); li++;
     }
     await wait(1500); box.innerHTML = '';
@@ -593,6 +674,8 @@ export class Game {
     if (this.onEnd) this.onEnd();
   }
 }
+// the gist of a piece in a few characters (the equip list)
+function shortStats(id) { const it = ITEMS[id], o = []; for (const [k, zh, en] of [['atk', '攻', 'A'], ['def', '防', 'D'], ['agi', '敏', 'Ag'], ['mhp', '體', 'HP'], ['mmp', '氣', 'MP']]) if (it[k]) o.push(t([zh, en]) + it[k]); return o.slice(0, 2).join(' '); }
 export function mapName(id) { if (id === 'world') return t(['野外', 'Wilds']); const M = MAPS[id]; return M ? t(M.name) : id; }
 function creditsHTML(G) {
   const s = G.stats, mm = Math.floor(s.time / 60);

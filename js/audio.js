@@ -117,6 +117,7 @@ export class Audio {
       case 'run': for (let i = 0; i < 4; i++) this.tone('pulse', 800 - i * 150, 800 - i * 150, 0.04, 0.4, i * 0.04); break;
       case 'die': this.tone('square', 300, 40, 0.5, 0.5); this.noise(0.5, 0.6, 0, 200); break;
       case 'poison': this.tone('triangle', 200, 140, 0.08, 0.6); break;
+      case 'drop': [988, 1319, 1976].forEach((f, i) => this.tone('pulse', f, f, 0.07, 0.4, i * 0.05)); this.tone('triangle', 2637, 2637, 0.14, 0.3, 0.15); break;   // a little paper tag pops up
       case 'buy': this.tone('pulse', 1046, 1046, 0.05, 0.5); this.tone('pulse', 1568, 1568, 0.08, 0.5, 0.05); break;
     }
   }

@@ -12,9 +12,9 @@ import * as THREE from 'three';
 import { EffectComposer } from '../lib/addons/EffectComposer.js';
 import { RenderPass } from '../lib/addons/RenderPass.js';
 import { ShaderPass } from '../lib/addons/ShaderPass.js';
-import { tex, spr, FACES, SPR, POP } from './tiles.js?v=13';
-import { TILES } from './maps.js?v=13';
-import { grainCanvas, woodCanvas, edgeCanvas, dieCut } from './paper.js?v=13';
+import { tex, spr, FACES, SPR, POP } from './tiles.js?v=14';
+import { TILES } from './maps.js?v=14';
+import { grainCanvas, woodCanvas, edgeCanvas, dieCut } from './paper.js?v=14';
 
 // the one full-screen pass: a light depth-of-field blur away from the focus band (one pass, 9 taps where blurred,
 // 1 tap in focus), the linear -> sRGB step and the grade (warm tint, vignette, fades and flashes)
@@ -677,6 +677,7 @@ class Actor {
     return (this.cache[k] = texOf(dieCut(c, 4, 6, 5)));
   }
   set(dir, i) {
+    this.dir = dir; this.fi = i;
     let d = dir, flip = false; if (dir === 'left') { d = 'side'; flip = true; } else if (dir === 'right') d = 'side';
     const t = this.frameTex(d, i); if (this.mat.uniforms.uAtlas.value !== t) this.mat.uniforms.uAtlas.value = t;
     const w = flip ? -this.W : this.W; if (this.A.size.array[0] !== w) { this.A.size.array[0] = w; this.A.size.needsUpdate = true; }
@@ -702,6 +703,8 @@ class Actor {
     this.blob.position.set(this.x + 0.1, 0.006 + this.y, this.z - 0.06); this.blob.scale.set(s, 1, s);
     return f > 0 || this.vel !== 0 || this.delay > 0;
   }
+  // new clothes (the paper doll): drop the cached frame textures; the next set() cuts the new ones (once per change)
+  relook(look) { const old = Object.values(this.cache); this.cache = {}; this.look = look; this.set(this.dir || 'down', this.fi || 0); for (const t of old) t.dispose(); }
   visible(v) { this.mesh.visible = v; this.blob.visible = v; }
   dispose() { this.view.group.remove(this.mesh); this.view.group.remove(this.blob); this.mesh.geometry.dispose(); this.mat.dispose(); for (const t of Object.values(this.cache)) t.dispose(); }
 }

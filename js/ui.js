@@ -1,6 +1,6 @@
 // Paper windows: cream notes with torn edges and dark ink in the Cubic 11 pixel font (the look is in style.css).
 // Messages type out, menus move a ▶ cursor. Every prompt returns a promise. A test driver (UI.driver) may answer prompts instead of a person.
-import { CAST } from './people_art.js?v=13';
+import { CAST } from './people_art.js?v=14';
 
 export const STR = {
   attack: ['攻擊', 'Attack'], skill: ['武功', 'Arts'], item: ['道具', 'Items'], run: ['逃走', 'Run'],
@@ -14,6 +14,7 @@ export const STR = {
   qlow: ['低', 'Low'], qmed: ['中', 'Medium'], qhigh: ['高', 'High'],
   newgame: ['開始新的旅程', 'New Journey'], cont: ['繼續（自動記錄）', 'Continue (autosave)'], load: ['讀取記錄', 'Load'],
   slot: ['記錄', 'Record'], empty: ['（空白）', '(empty)'], gp: ['兩', 'g'],
+  unequip: ['（卸下）', '(take off)'], drop: ['掉落', 'Drops'],
   save: ['記錄', 'Save'], book: ['圖鑑', 'Bestiary'], use: ['使用', 'Use'], toss: ['丟掉', 'Drop'], who: ['', ''],
 };
 let lang = 'zh';
@@ -43,7 +44,7 @@ export const nameOf = (who) => t(NAMES[who] || ['', '']);
 
 export class UI {
   constructor(root, input, audio) {
-    this.root = root; this.input = input; this.audio = audio; this.driver = null; this.fast = false;
+    this.root = root; this.input = input; this.audio = audio; this.driver = null; this.fast = false; this.por = {};   // por: portraits drawn at run time (the paper doll), by who
     this.msgBox = this.el('div', 'win msg hidden'); this.msgText = this.el('div', 'mtext', this.msgBox); this.msgPor = this.el('div', 'mpor', this.msgBox);
     this.msgName = this.el('div', 'mname', this.msgBox); this.msgArrow = this.el('div', 'marrow', this.msgBox); this.msgArrow.textContent = '▼';
     this.banner = this.el('div', 'banner hidden');
@@ -56,7 +57,7 @@ export class UI {
     const box = this.msgBox; box.classList.remove('hidden');
     const cast = who && CAST[who];
     box.classList.toggle('withpor', !!cast);
-    this.msgPor.style.backgroundImage = cast ? `url(${cast.portrait})` : '';
+    this.msgPor.style.backgroundImage = cast ? `url(${this.por[who] || cast.portrait})` : '';
     this.msgName.textContent = who ? nameOf(who) : ''; this.msgName.classList.toggle('hidden', !who);
     this.msgArrow.classList.add('hidden');
     let done = false, skip = false;
