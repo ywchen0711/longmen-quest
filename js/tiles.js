@@ -1,6 +1,7 @@
 // Pixel textures for the pop-up book maps, drawn in code with colours from the NES (2C02) palette only.
 // Each tile face is 16x16 (printed on the page, or on the walls' cards); pop-up pieces (trees, pots, statues, fire) are
 // small typed grids, and mountains, waves and the world map's towns and caves are drawn with shapes (POP).
+import { INK_POP, INK_FACES, chouse, GREYROOF } from './ink.js?v=17';
 export const NES = [
   0x7C7C7C, 0x0000FC, 0x0000BC, 0x4428BC, 0x940084, 0xA80020, 0xA81000, 0x881400, 0x503000, 0x007800, 0x006800, 0x005800, 0x004058, 0x000000, 0x000000, 0x000000,
   0xBCBCBC, 0x0078F8, 0x0058F8, 0x6844FC, 0xD800CC, 0xE40058, 0xF83800, 0xE45C10, 0xAC7C00, 0x00B800, 0x00A800, 0x00A844, 0x008888, 0x000000, 0x000000, 0x000000,
@@ -437,14 +438,8 @@ const roofP = (d, m, l) => (x, y) => (y % 3 === 2 ? d : (x + ((y / 3) | 0) * 2) 
 const brickP = (mortar, a, b2) => (x, y) => { const row = y >> 1, off = row % 2 ? 2 : 0; return (y % 2 === 1 || (x + off) % 4 === 3) ? mortar : ((x * 7 + y * 3) % 5 === 0 ? b2 : a); };
 const plankP = (d, a) => (x) => (x % 3 === 2 ? d : a);
 const plasterP = (x, y) => (y === 0 ? 0x07 : 0x36);
-function house(P, x, base, w, wallH, roofH, roof, door = true) {
-  P.rect(x, base - wallH, w, wallH, plasterP);
-  if (door) P.rect(x + (w >> 1) - 1, base - 3, 2, 3, 0x07);
-  if (w > 7) { P.rect(x + 1, base - wallH + 1, 2, 1, 0x0D); P.rect(x + w - 3, base - wallH + 1, 2, 1, 0x0D); }
-  const top = base - wallH - roofH;
-  P.poly([[x - 1.5, base - wallH], [x + w + 1.5, base - wallH], [x + w - 1, top], [x + 1, top]], roofP(...roof));
-  P.rect(x + 1, top - 1, w - 2, 1, roof[0]);
-}
+// a Chinese house: white wall, red corner pillars, a tiled roof with upturned eaves (red roofs become dark tiles)
+function house(P, x, base, w, wallH, roofH, roof, door = true) { chouse(P, x, base, w, wallH, roofH, roof === RED ? GREYROOF : roof, door); }
 const RED = [0x07, 0x16, 0x26], BLUE = [0x02, 0x12, 0x21], GREEN = [0x0B, 0x1A, 0x2A], THATCH = [0x08, 0x18, 0x28], GOLD = [0x07, 0x28, 0x38], DARKR = [0x0D, 0x08, 0x07], PURPLE = [0x0D, 0x04, 0x13];
 const rockP = (x, y) => ((x * 3 + y * 5) % 11 === 0 ? 0x07 : (x + y * 2) % 7 === 0 ? 0x27 : 0x17);
 const greyRockP = (x, y) => ((x * 3 + y * 5) % 11 === 0 ? 0x2D : (x + y * 2) % 7 === 0 ? 0x10 : 0x00);
@@ -496,5 +491,8 @@ export const POP = {
   cave: () => paint(32, 22, (P) => { P.poly([[1, 21], [6, 8], [13, 3], [20, 4], [27, 10], [31, 21]], greyRockP); P.poly([[17, 4], [27, 10], [31, 21], [20, 21]], (x, y) => ((x + y) % 5 === 0 ? 0x2D : 0x0D)); P.poly([[10, 21], [11, 14], [16, 11], [21, 14], [22, 21]], 0x0D); P.rect(9, 12, 14, 1, 0x10); }),
   lair: () => paint(32, 30, (P) => { P.rect(4, 14, 24, 15, brickP(0x0D, 0x03, 0x13)); P.rect(1, 6, 5, 23, brickP(0x0D, 0x03, 0x13)); P.rect(26, 6, 5, 23, brickP(0x0D, 0x03, 0x13)); P.poly([[2, 15], [30, 15], [24, 8], [8, 8]], roofP(...PURPLE)); P.rect(13, 20, 6, 9, 0x24); P.rect(14, 21, 4, 8, 0x34); P.poly([[0, 7], [7, 7], [3.5, 2]], roofP(...PURPLE)); P.poly([[25, 7], [32, 7], [28.5, 2]], roofP(...PURPLE)); }),
 };
+// the Chinese storybook pieces and faces (ink.js) join and replace the plain ones
+for (const [k, f] of Object.entries(INK_POP)) { if (k in SPR) SPR[k] = f; else POP[k] = f; }
+Object.assign(FACES, INK_FACES);
 const scache = {};
 export function spr(name) { return scache[name] || (scache[name] = (SPR[name] || POP[name])()); }

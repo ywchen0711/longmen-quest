@@ -1,19 +1,22 @@
 // Boot: build the view, the title screen, the opening, and run the fixed-timestep loop.
-import { View, pickQuality, loadImage, registerSheet } from './view.js?v=16';
-import { Input } from './input.js?v=16';
-import { UI, t, STR, getLang, setLang } from './ui.js?v=16';
-import { Audio } from './audio.js?v=16';
-import { Game, mapName } from './game.js?v=16';
-import { CAST, PEOPLE_IMAGE } from './people_art.js?v=16';
-import { preloadBattleArt } from './battle.js?v=16';
-import { PLACE_AT } from './world_map.js?v=16';
-import { paperTileURL, deckleURL, woodURL } from './paper.js?v=16';
+import { View, pickQuality, loadImage, registerSheet } from './view.js?v=17';
+import { Input } from './input.js?v=17';
+import { UI, t, STR, getLang, setLang } from './ui.js?v=17';
+import { Audio } from './audio.js?v=17';
+import { Game, mapName } from './game.js?v=17';
+import { CAST, PEOPLE_IMAGE } from './people_art.js?v=17';
+import { preloadBattleArt } from './battle.js?v=17';
+import { PLACE_AT } from './world_map.js?v=17';
+import { paperTileURL, deckleURL, woodURL } from './paper.js?v=17';
+import { fretFrameURL, sealURL, brushURL } from './ink.js?v=17';
 
 const params = new URLSearchParams(location.search);
 const NORENDER = params.has('norender');
 setLang(getLang());
 // the paper pictures the windows use (drawn once in code): grain, the deckled edge, the wooden table
-{ const st = document.documentElement.style; st.setProperty('--grain', `url(${paperTileURL()})`); st.setProperty('--deckle', `url(${deckleURL()})`); st.setProperty('--wood', `url(${woodURL()})`); }
+{ const st = document.documentElement.style; st.setProperty('--grain', `url(${paperTileURL()})`); st.setProperty('--deckle', `url(${deckleURL()})`); st.setProperty('--wood', `url(${woodURL()})`);
+  // the Chinese dressing: a vermilion 回紋 frame for the windows, the game's seal, a dry-brush underline
+  st.setProperty('--deckle', `url(${fretFrameURL()})`); st.setProperty('--seal', `url(${sealURL('龍門', 20)})`); st.setProperty('--brush', `url(${brushURL()})`); }
 
 const input = new Input(), audio = new Audio();
 const ui = new UI(document.getElementById('ui'), input, audio);
@@ -54,7 +57,7 @@ input.push((k) => {
 });
 
 async function loadArt() {
-  const jobs = [loadImage(PEOPLE_IMAGE).then((i) => registerSheet('npcs', i)), loadImage('assets/enemies.png?v=16').then((i) => registerSheet('enemies', i))];
+  const jobs = [loadImage(PEOPLE_IMAGE).then((i) => registerSheet('npcs', i)), loadImage('assets/enemies.png?v=17').then((i) => registerSheet('enemies', i))];
   for (const [id, c] of Object.entries(CAST)) jobs.push(loadImage(c.sheet).then((i) => registerSheet('cast_' + id, i)));
   await Promise.all(jobs); preloadBattleArt();
 }
@@ -90,6 +93,7 @@ function loop(now) {
       if (++slow > 120) {
         slow = 0; fps = 60;
         if (!view.prCap) { view.prCap = 1; view.resize(); }
+        else if (view.dropMSAA()) { /* stepped down */ }
         else if (view.post) { view.post = false; view.composer = null; }
         else if (!view.cheap) view.setCheap();
       }
@@ -130,7 +134,8 @@ async function openCover(toPage) {
   tl.classList.add('gone'); if (!G.fast) await new Promise((r) => setTimeout(r, 380));
   tl.classList.add('hidden'); tl.classList.remove('open', 'gone');
 }
-function drawTitle() { document.getElementById('tname').textContent = t(['龍門刀客傳', 'Longmen Quest']); document.getElementById('tsub').textContent = t(['龍門雙奕・番外', 'A Longmen Twins side story']); document.getElementById('tpress').textContent = '© 2026  ' + t(['原創 8-bit 武俠立體書 RPG', 'An original 8-bit wuxia pop-up book RPG']); const em = document.getElementById('temb'); if (em && CAST.yirui) em.src = CAST.yirui.portrait; }
+function drawTitle() {
+  document.getElementById('title').classList.toggle('en', getLang() !== 'zh'); document.getElementById('tname').textContent = t(['龍門刀客傳', 'Longmen Quest']); document.getElementById('tsub').textContent = t(['龍門雙奕・番外', 'A Longmen Twins side story']); document.getElementById('tpress').textContent = '© 2026  ' + t(['原創 8-bit 武俠立體書 RPG', 'An original 8-bit wuxia pop-up book RPG']); const em = document.getElementById('temb'); if (em && CAST.yirui) em.src = CAST.yirui.portrait; }
 async function resume() {
   if (G.map === 'world') await G.enterWorld(G.x, G.y); else await G.enterMap(G.map, G.x, G.y, G.dir);
   G.mode = 'field';

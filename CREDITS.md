@@ -9,6 +9,7 @@
 - **Map textures, trees, props, mountains, waves and the world map's pop-up towns:** drawn in code from NES palette colours (`js/tiles.js`).
 - **The pop-up book (paper grain, the wooden table, page edges, die-cut card borders, torn paper windows, the book cover):** drawn in code, no image files (`js/paper.js`, `js/view.js`, `style.css`).
 
+- **The Chinese storybook look (pines, plum, willows, bamboo, Taihu rocks, stone lions, lanterns, pagodas, paifang, arched bridges, blue-green mountains, white walls and dark tiles, ink washes, the fret border, seals, the thread-bound cover, ink-wash battle backdrops):** drawn in code from NES palette colours, no image files and no outside assets (`js/ink.js`). Headings use the device's own Kai/Song fonts when present.
 ## Music and sound (original)
 - **Soundtrack:** composed for this game and rendered by an NES-style synth in `tools/music.py` (two pulse channels, a triangle and noise). The tracks are:
   - 龍門刀客傳 · Ballad of the Longmen Blade

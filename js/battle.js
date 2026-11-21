@@ -8,18 +8,19 @@
 // exchange shows who strikes and who is struck: the attacker winds up and lunges, the blow lands on the target's card
 // (which is boxed by blinking corner marks, flashes, recoils on its hinge and sheds paper scraps), and the number
 // pops up on a tag over the card that was hit - a cream tag for the foe, a red one for the hero.
-import { ENEMIES, SKILLS, ITEMS, ART_OF } from './data.js?v=16';
-import { ENEMY_ART } from './enemy_art.js?v=16';
-import { CAST, PEOPLE, PEOPLE_IMAGE } from './people_art.js?v=16';
-import * as R from './rules.js?v=16';
-import { t, STR } from './ui.js?v=16';
-import { hex, NES } from './tiles.js?v=16';
-import { dieCut, grainCanvas } from './paper.js?v=16';
+import { ENEMIES, SKILLS, ITEMS, ART_OF } from './data.js?v=17';
+import { ENEMY_ART } from './enemy_art.js?v=17';
+import { CAST, PEOPLE, PEOPLE_IMAGE } from './people_art.js?v=17';
+import * as R from './rules.js?v=17';
+import { t, STR } from './ui.js?v=17';
+import { hex, NES } from './tiles.js?v=17';
+import { dieCut, grainCanvas } from './paper.js?v=17';
+import { inkLandscape } from './ink.js?v=17';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const imgs = {};
 function img(src) { if (!imgs[src]) { imgs[src] = new Image(); imgs[src].src = src; } return imgs[src]; }
-export function preloadBattleArt() { img('assets/enemies.png?v=16'); img(PEOPLE_IMAGE); for (const c of Object.values(CAST)) img(c.portrait); }
+export function preloadBattleArt() { img('assets/enemies.png?v=17'); img(PEOPLE_IMAGE); for (const c of Object.values(CAST)) img(c.portrait); }
 
 const SCENES = {   // backdrop strip colours (NES indexes): sky, far, near
   grass: [0x21, 0x1A, 0x0A], forest: [0x0A, 0x0B, 0x1A], hill: [0x21, 0x19, 0x09], sand: [0x31, 0x27, 0x17], swamp: [0x0C, 0x0B, 0x04],
@@ -79,25 +80,21 @@ const INKOF = { 0x30: '#2b2118', 0x28: '#b5361f', 0x27: '#c8401c', 0x2A: '#2f7a2
 const mixc = (a, b, f) => { const A = NES[a], r = (A >> 16 & 255) * (1 - f) + (b >> 16 & 255) * f, g = (A >> 8 & 255) * (1 - f) + (b >> 8 & 255) * f, bl = (A & 255) * (1 - f) + (b & 255) * f; return `rgb(${r | 0},${g | 0},${bl | 0})`; };
 let GRAIN = null;
 function scenery(scene) {
-  const c = document.createElement('canvas'); c.width = 480; c.height = 360; const g = c.getContext('2d'); g.setTransform(3, 0, 0, 3, 0, 0);
-  const PAP = 0xf3e8cf;
-  g.fillStyle = mixc(scene[0], PAP, 0.42); g.fillRect(0, 0, 160, 60);
-  const ridge = (y0, a1, f1, a2, f2, ph, col, shadow) => {
-    const path = () => { g.beginPath(); g.moveTo(0, 70); for (let x = 0; x <= 160; x += 2) g.lineTo(x, y0 + Math.round(Math.sin(x * f1 + ph) * a1 + Math.sin(x * f2 + ph * 2) * a2)); g.lineTo(160, 70); g.closePath(); };
-    g.save(); g.translate(1.5, 1.5); g.fillStyle = shadow; path(); g.fill(); g.restore();      // the layer's shadow on the one behind
-    g.fillStyle = '#fffaf0'; g.save(); g.translate(0, -1); path(); g.fill(); g.restore();      // its white cut edge
-    g.fillStyle = col; path(); g.fill();
-  };
-  ridge(26, 5, 0.07, 2, 0.19, 0.3, mixc(scene[1], PAP, 0.3), 'rgba(40,25,10,0.25)');
-  ridge(36, 3, 0.11, 2, 0.23, 1.7, mixc(scene[2], PAP, 0.22), 'rgba(40,25,10,0.3)');
-  // the floor of the page the foe stands on: a darker card, so the white sparks still show
-  g.fillStyle = 'rgba(40,25,10,0.35)'; g.fillRect(0, 47, 160, 2);
-  g.fillStyle = mixc(scene[2], 0x2a2018, 0.62); g.fillRect(0, 48, 160, 72);
-  g.fillStyle = '#fffaf0'; g.fillRect(0, 47, 160, 1);
+  const SW = 160, SH = 120, FLOOR = 48;
+  const c = document.createElement('canvas'); c.width = SW * 3; c.height = SH * 3; const g = c.getContext('2d');
+  const s = document.createElement('canvas'); s.width = SW; s.height = SH; const q = s.getContext('2d');
+  const rgb = (i) => [NES[i] >> 16 & 255, NES[i] >> 8 & 255, NES[i] & 255];
+  inkLandscape(q, { sky: rgb(scene[0]), far: rgb(scene[1]), near: rgb(scene[2]) }, scene[0] * 7 + scene[1] * 3 + scene[2], SW, FLOOR);
+  // the floor of the page the foes stand on: a darker card with a white cut edge, brushed with a few ink strokes
+  q.fillStyle = 'rgba(40,25,10,0.35)'; q.fillRect(0, FLOOR - 1, SW, 2);
+  q.fillStyle = mixc(scene[2], 0x2a2018, 0.62); q.fillRect(0, FLOOR, SW, SH - FLOOR);
+  q.fillStyle = 'rgba(0,0,0,0.16)'; for (let i = 0; i < 9; i++) { const y = FLOOR + 6 + ((i * 37) % (SH - FLOOR - 10)), x = (i * 53) % SW, w = 18 + (i * 13) % 30; q.fillRect(x, y, w, 1); q.fillRect(x + 3, y + 1, w - 8, 1); }
+  q.fillStyle = '#fffaf0'; q.fillRect(0, FLOOR - 1, SW, 1);
+  g.imageSmoothingEnabled = false; g.drawImage(s, 0, 0, SW * 3, SH * 3);
   try {   // paper grain over everything
     if (!GRAIN) GRAIN = grainCanvas(128, 31);
-    g.setTransform(1, 0, 0, 1, 0, 0); g.globalCompositeOperation = 'multiply'; g.globalAlpha = 0.55;
-    for (let y = 0; y < 360; y += 128) for (let x = 0; x < 480; x += 128) g.drawImage(GRAIN, x, y);
+    g.globalCompositeOperation = 'multiply'; g.globalAlpha = 0.5;
+    for (let y = 0; y < SH * 3; y += 128) for (let x = 0; x < SW * 3; x += 128) g.drawImage(GRAIN, x, y);
     g.globalCompositeOperation = 'source-over'; g.globalAlpha = 1;
   } catch (e) {}
   return c;
@@ -131,7 +128,7 @@ export async function battle(G, foeId, opts = {}) {
   const scene = SCENES[opts.scene] || SCENES.grass;
   let art = null, src = null;
   if (E.por) { src = img(CAST[E.por].portrait); art = { x: 0, y: 0, w: 48, h: 56, por: 1 }; }
-  else { src = img('assets/enemies.png?v=16'); art = ENEMY_ART[ART_OF(foeId)]; }
+  else { src = img('assets/enemies.png?v=17'); art = ENEMY_ART[ART_OF(foeId)]; }
   // whole device pixels per art pixel (k/3 on the 160x120 stage); bigger pictures step down so they always fit
   // a third larger than 1:1 on the 160x120 stage, so the foe fills about two thirds of the black area
   const k = art.por ? 4 : Math.max(3, Math.min(4, Math.floor(276 / art.h), Math.floor(468 / art.w)));

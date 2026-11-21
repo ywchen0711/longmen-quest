@@ -1,5 +1,5 @@
 // The one set of rules the hero and every enemy share: stats, damage, skills, items, levels.
-import { LEVELS, MAX_LV, XP_FOR, SKILLS, LEARN_ORDER, ITEMS, BAG_MAX, SLOTS } from './data.js?v=16';
+import { LEVELS, MAX_LV, XP_FOR, SKILLS, LEARN_ORDER, ITEMS, BAG_MAX, SLOTS } from './data.js?v=17';
 
 export const rand = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
 
