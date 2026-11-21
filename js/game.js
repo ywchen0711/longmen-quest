@@ -1,18 +1,18 @@
 // The game: where the hero is, walking on tile maps, people and their scripts, chests, doors, encounters, menus,
 // inns, shops, saving and the story's turning points. The view only draws what this holds.
-import { MAPS, PLACES, TILES, L } from './maps.js?v=17';
-import { WORLD, WORLD_W, WORLD_H, PLACE_AT } from './world_map.js?v=17';
-import { ITEMS, SKILLS, SHOPS, ENEMIES, ZONES, zoneAt, ENCOUNTER, RARE, RARE_CHANCE, MONEY_FOE, ART_OF, SLOTS, SLOT_NAME, isGear, GEAR_FX, BAG_MAX } from './data.js?v=17';
-import { dress, dressView, dressPortrait, sheetCanvas, portraitCanvas, paint } from './doll.js?v=17';
-import { NES } from './tiles.js?v=17';
-import { registerSheet } from './view.js?v=17';
-import { dieCut } from './paper.js?v=17';
-import { PEOPLE, CAST } from './people_art.js?v=17';
-import { ENEMY_ART, ENEMY_INFO } from './enemy_art.js?v=17';
-import * as R from './rules.js?v=17';
-import { battle } from './battle.js?v=17';
-import { t, STR, getLang, setLang, nameOf } from './ui.js?v=17';
-import { stage, objective, SIGNS, SIGN_AT } from './hints.js?v=17';
+import { MAPS, PLACES, TILES, L } from './maps.js?v=18';
+import { WORLD, WORLD_W, WORLD_H, PLACE_AT } from './world_map.js?v=18';
+import { ITEMS, SKILLS, SHOPS, ENEMIES, ZONES, zoneAt, ENCOUNTER, RARE, RARE_CHANCE, MONEY_FOE, ART_OF, SLOTS, SLOT_NAME, isGear, GEAR_FX, BAG_MAX } from './data.js?v=18';
+import { dress, dressView, dressPortrait, sheetCanvas, portraitCanvas, paint } from './doll.js?v=18';
+import { NES } from './tiles.js?v=18';
+import { registerSheet } from './view.js?v=18';
+import { dieCut } from './paper.js?v=18';
+import { PEOPLE, CAST } from './people_art.js?v=18';
+import { ENEMY_ART, ENEMY_INFO } from './enemy_art.js?v=18';
+import * as R from './rules.js?v=18';
+import { battle } from './battle.js?v=18';
+import { t, STR, getLang, setLang, nameOf } from './ui.js?v=18';
+import { stage, objective, SIGNS, SIGN_AT } from './hints.js?v=18';
 
 const DIRS = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
 const SAVE_KEYS = ['lq_slot1', 'lq_slot2', 'lq_slot3'];

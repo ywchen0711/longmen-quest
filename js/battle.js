@@ -8,19 +8,19 @@
 // exchange shows who strikes and who is struck: the attacker winds up and lunges, the blow lands on the target's card
 // (which is boxed by blinking corner marks, flashes, recoils on its hinge and sheds paper scraps), and the number
 // pops up on a tag over the card that was hit - a cream tag for the foe, a red one for the hero.
-import { ENEMIES, SKILLS, ITEMS, ART_OF } from './data.js?v=17';
-import { ENEMY_ART } from './enemy_art.js?v=17';
-import { CAST, PEOPLE, PEOPLE_IMAGE } from './people_art.js?v=17';
-import * as R from './rules.js?v=17';
-import { t, STR } from './ui.js?v=17';
-import { hex, NES } from './tiles.js?v=17';
-import { dieCut, grainCanvas } from './paper.js?v=17';
-import { inkLandscape } from './ink.js?v=17';
+import { ENEMIES, SKILLS, ITEMS, ART_OF } from './data.js?v=18';
+import { ENEMY_ART } from './enemy_art.js?v=18';
+import { CAST, PEOPLE, PEOPLE_IMAGE } from './people_art.js?v=18';
+import * as R from './rules.js?v=18';
+import { t, STR } from './ui.js?v=18';
+import { hex, NES } from './tiles.js?v=18';
+import { dieCut, grainCanvas } from './paper.js?v=18';
+import { inkLandscape } from './ink.js?v=18';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const imgs = {};
 function img(src) { if (!imgs[src]) { imgs[src] = new Image(); imgs[src].src = src; } return imgs[src]; }
-export function preloadBattleArt() { img('assets/enemies.png?v=17'); img(PEOPLE_IMAGE); for (const c of Object.values(CAST)) img(c.portrait); }
+export function preloadBattleArt() { img('assets/enemies.png?v=18'); img(PEOPLE_IMAGE); for (const c of Object.values(CAST)) img(c.portrait); }
 
 const SCENES = {   // backdrop strip colours (NES indexes): sky, far, near
   grass: [0x21, 0x1A, 0x0A], forest: [0x0A, 0x0B, 0x1A], hill: [0x21, 0x19, 0x09], sand: [0x31, 0x27, 0x17], swamp: [0x0C, 0x0B, 0x04],
@@ -128,7 +128,7 @@ export async function battle(G, foeId, opts = {}) {
   const scene = SCENES[opts.scene] || SCENES.grass;
   let art = null, src = null;
   if (E.por) { src = img(CAST[E.por].portrait); art = { x: 0, y: 0, w: 48, h: 56, por: 1 }; }
-  else { src = img('assets/enemies.png?v=17'); art = ENEMY_ART[ART_OF(foeId)]; }
+  else { src = img('assets/enemies.png?v=18'); art = ENEMY_ART[ART_OF(foeId)]; }
   // whole device pixels per art pixel (k/3 on the 160x120 stage); bigger pictures step down so they always fit
   // a third larger than 1:1 on the 160x120 stage, so the foe fills about two thirds of the black area
   const k = art.por ? 4 : Math.max(3, Math.min(4, Math.floor(276 / art.h), Math.floor(468 / art.w)));

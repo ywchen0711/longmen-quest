@@ -1,7 +1,7 @@
 // Where the story stands and what to do next, worked out from the flags and key items alone (so an old record
 // knows its objective too). Used by the 線索 / Clues window, by Mr Bai, and by townsfolk who talk about the
 // current goal. Also the signposts that stand at the forks of the world map.
-import { L } from './maps.js?v=17';
+import { L } from './maps.js?v=18';
 
 // the story stage, in the order the tale is told
 export function stage(G) {
